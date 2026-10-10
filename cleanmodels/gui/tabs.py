@@ -139,8 +139,15 @@ class UnusedTab(_DeletableTab):
     def _delete(self) -> None:
         files = [self._files[k] for k in self.table.checked_keys()]
         items = [DeletionItem(f.path, f.size, "unused") for f in files]
-        folder, inventory = workflows_dir(self._result.comfy), self._result.inventory.files
-        self.on_delete(items, lambda: unused_checker(folder, inventory), [])
+        folder, inventory = workflows_dir(self._result.comfy), self._result.inventory
+        files, aliases = list(inventory.files), list(inventory.aliases)
+        notes = []
+        if self._result.workflows.skipped:
+            notes.append(
+                f"{len(self._result.workflows.skipped)} workflow(s) illisible(s) : la suppression sera refusée "
+                "tant qu'ils ne sont pas corrigés ou retirés (voir « Détails… »)."
+            )
+        self.on_delete(items, lambda: unused_checker(folder, files, aliases), notes)
 
 
 class DuplicatesTab(_DeletableTab):

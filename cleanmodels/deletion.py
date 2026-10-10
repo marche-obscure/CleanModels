@@ -24,6 +24,7 @@ class DeletionResult:
     deleted: list = field(default_factory=list)
     refused: list = field(default_factory=list)
     errors: list = field(default_factory=list)
+    log_errors: list = field(default_factory=list)
 
     @property
     def freed_bytes(self) -> int:
@@ -33,16 +34,27 @@ class DeletionResult:
 Checker = Callable[[DeletionItem], "str | None"]
 
 
-def unused_checker(workflows_folder: Path, files: list) -> Checker:
-    """Refuse un fichier qu'un workflow cite au moment de la suppression."""
-    index = FileIndex(files)
+def unused_checker(workflows_folder: Path, files: list, aliases: list = ()) -> Checker:
+    """Refuse un fichier qu'un workflow cite au moment de la suppression.
+
+    Seuls les fichiers encore présents sont indexés : une référence dont la cible
+    exacte a disparu retombe sur les copies de même nom. Si un workflow est illisible,
+    toute suppression est refusée, car ses références sont inconnues.
+    """
+    present = [f for f in files if os.path.isfile(f.path)]
+    present_aliases = [(rel, f) for rel, f in aliases if os.path.isfile(f.path)]
+    index = FileIndex(present, present_aliases)
+    scan = scan_workflows(workflows_folder)
     referenced = {
         file_key(f.path)
-        for ref in scan_workflows(workflows_folder).references
+        for ref in scan.references + scan.name_references
         for f in index.lookup(ref.value)
     }
+    unreadable = len(scan.skipped)
 
     def check(item: DeletionItem) -> str | None:
+        if unreadable:
+            return f"{unreadable} workflow(s) illisible(s) : corrigez-les ou retirez-les du dossier des workflows"
         return "cité par un workflow" if file_key(item.path) in referenced else None
 
     return check
@@ -77,11 +89,15 @@ def junk_checker(patterns: list) -> Checker:
     return check
 
 
-def _log(log_path: Path, item: DeletionItem, status: str) -> None:
+def _log(log_path: Path, item: DeletionItem, status: str, result: "DeletionResult") -> None:
+    """Écrit une ligne de journal ; un échec d'écriture est noté sans interrompre la suppression."""
     stamp = datetime.now().isoformat(timespec="seconds")
     line = "\t".join([stamp, item.source, status, str(item.size), str(item.path)])
-    with open(log_path, "a", encoding="utf-8") as handle:
-        handle.write(line + "\n")
+    try:
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+    except OSError as exc:
+        result.log_errors.append(f"{item.path} ({status}) : journal non écrit — {exc}")
 
 
 def _precheck(item: DeletionItem) -> str | None:
@@ -103,14 +119,14 @@ def delete_files(items: list, checker: Checker, log_path: Path) -> DeletionResul
             reason = f"vérification impossible ({exc})"
         if reason:
             result.refused.append((item, reason))
-            _log(log_path, item, f"REFUSÉ: {reason}")
+            _log(log_path, item, f"REFUSÉ: {reason}", result)
             continue
         try:
             os.remove(item.path)
         except OSError as exc:
             result.errors.append((item, str(exc)))
-            _log(log_path, item, f"ERREUR: {exc}")
+            _log(log_path, item, f"ERREUR: {exc}", result)
             continue
         result.deleted.append(item)
-        _log(log_path, item, "SUPPRIMÉ")
+        _log(log_path, item, "SUPPRIMÉ", result)
     return result

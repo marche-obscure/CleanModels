@@ -97,4 +97,6 @@ def show_report(parent, result) -> None:
         lines += ["", "Refusés :"] + [f"  {item.path} — {reason}" for item, reason in result.refused]
     if result.errors:
         lines += ["", "Erreurs :"] + [f"  {item.path} — {message}" for item, message in result.errors]
+    if result.log_errors:
+        lines += ["", "Journal non écrit :"] + [f"  {message}" for message in result.log_errors]
     show_details(parent, "Bilan de la suppression", lines)

@@ -35,6 +35,19 @@ class AnalysisTest(TempHomeMixin, unittest.TestCase):
         self.assertEqual(result.total_bytes, 2 + 3 + 4)
         self.assertEqual(result.comfy, comfy)
 
+    def test_llm_folder_and_hardlink_alias_count_as_used(self):
+        import os
+
+        comfy = make_comfy(self.tmp, {
+            "models/LLM/Qwen2.5-VL/model.safetensors": b"q",
+            "models/vae/real.pt": b"r",
+            "user/default/workflows/w.json": workflow("Qwen2.5-VL", "alias.pt"),
+        })
+        os.link(comfy / "models" / "vae" / "real.pt", comfy / "models" / "vae" / "alias.pt")
+        result = run_analysis(comfy, [])
+        self.assertEqual(result.usage.unused, [])
+        self.assertEqual(len(result.usage.used), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

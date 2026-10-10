@@ -42,7 +42,9 @@ def run_analysis(
     step("Lecture des workflows…")
     workflows = scan_workflows(workflows_dir(comfy))
     step("Correspondance…")
-    usage = match_usage(inventory.files, workflows.references)
+    usage = match_usage(
+        inventory.files, workflows.references + workflows.name_references, inventory.aliases
+    )
     step("Fichiers parasites…")
     junk = find_junk(roots.dirs, junk_patterns)
     return AnalysisResult(comfy, roots, inventory, workflows, usage, junk)

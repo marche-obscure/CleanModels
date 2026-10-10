@@ -76,5 +76,13 @@ class ScanWorkflowsTest(TempHomeMixin, unittest.TestCase):
         self.assertEqual(len(scan.skipped), 1)
 
 
+    def test_name_references_collected_separately(self):
+        data = {"nodes": [{"id": 1, "type": "QwenVL", "widgets_values": ["Qwen2.5-VL", 512, "x.pt", "a\nb", ""]}]}
+        (self.tmp / "w.json").write_text(json.dumps(data), encoding="utf-8")
+        scan = scan_workflows(self.tmp)
+        self.assertEqual([r.value for r in scan.references], ["x.pt"])
+        self.assertEqual([r.value for r in scan.name_references], ["Qwen2.5-VL"])
+
+
 if __name__ == "__main__":
     unittest.main()

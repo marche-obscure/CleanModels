@@ -21,6 +21,8 @@ class ModelFile:
 class InventoryResult:
     files: list = field(default_factory=list)
     errors: list = field(default_factory=list)
+    # (chemin relatif de l'alias, fichier conservé) : autres chemins du même fichier physique
+    aliases: list = field(default_factory=list)
 
 
 def file_key(path: Path) -> str:
@@ -30,8 +32,8 @@ def file_key(path: Path) -> str:
 
 def scan_models(dirs: list) -> InventoryResult:
     result = InventoryResult()
-    seen_keys = set()
-    seen_inodes = set()
+    kept_by_key: dict = {}
+    kept_by_inode: dict = {}
 
     def on_error(exc: OSError) -> None:
         result.errors.append(f"{exc.filename} : {exc.strerror or exc}")
@@ -49,18 +51,23 @@ def scan_models(dirs: list) -> InventoryResult:
                     on_error(exc)
                     continue
                 key = file_key(path)
-                inode = (stat.st_dev, stat.st_ino)
-                if key in seen_keys or (stat.st_ino and inode in seen_inodes):
+                inode = (stat.st_dev, stat.st_ino) if stat.st_ino else None
+                rel_path = os.path.relpath(path, root)
+                kept = kept_by_key.get(key) or (kept_by_inode.get(inode) if inode else None)
+                if kept is not None:
+                    if os.path.normcase(rel_path) != os.path.normcase(kept.rel_path):
+                        result.aliases.append((rel_path, kept))
                     continue
-                seen_keys.add(key)
-                if stat.st_ino:
-                    seen_inodes.add(inode)
-                result.files.append(ModelFile(
+                model = ModelFile(
                     path=path,
                     real_path=Path(os.path.realpath(path)),
                     category=model_dir.category,
-                    rel_path=os.path.relpath(path, root),
+                    rel_path=rel_path,
                     size=stat.st_size,
                     root=root,
-                ))
+                )
+                kept_by_key[key] = model
+                if inode:
+                    kept_by_inode[inode] = model
+                result.files.append(model)
     return result

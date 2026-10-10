@@ -69,5 +69,31 @@ class MatchingTest(unittest.TestCase):
         self.assertEqual([u.file for u in report.used], [f])
 
 
+    def test_llm_folder_reference_marks_shards_used(self):
+        a = model("LLM", "Qwen2.5-VL/model-00001.safetensors")
+        b = model("LLM", "Qwen2.5-VL/model-00002.safetensors")
+        report = match_usage([a, b], [ref("Qwen2.5-VL")])
+        self.assertEqual(report.unused, [])
+
+    def test_llm_repo_id_reference_matches_last_component(self):
+        a = model("LLM", "Qwen2.5-VL-3B/model.safetensors")
+        self.assertEqual(match_usage([a], [ref("Qwen/Qwen2.5-VL-3B")]).unused, [])
+
+    def test_folder_name_ignored_outside_llm(self):
+        t5 = model("text_encoders", "flux/t5.safetensors")
+        self.assertEqual(match_usage([t5], [ref("flux")]).unused, [t5])
+
+    def test_alias_reference_marks_kept_file_used(self):
+        a = model("checkpoints", "a_real.safetensors")
+        report = match_usage([a], [ref("b_alias.safetensors")], aliases=[("b_alias.safetensors", a)])
+        self.assertEqual([u.file for u in report.used], [a])
+
+    def test_nfd_reference_matches_nfc_file(self):
+        import unicodedata
+        f = model("checkpoints", unicodedata.normalize("NFC", "modèle_été.safetensors"))
+        report = match_usage([f], [ref(unicodedata.normalize("NFD", "modèle_été.safetensors"))])
+        self.assertEqual(report.unused, [])
+
+
 if __name__ == "__main__":
     unittest.main()

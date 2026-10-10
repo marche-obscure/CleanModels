@@ -143,12 +143,23 @@ Interprétation :
 - Le champ `properties.models` (métadonnées de téléchargement) est **ignoré**, pour ne pas
   compter deux fois un même usage.
 - Une même chaîne citée plusieurs fois dans un même nœud compte pour **un** appel.
+- Les autres chaînes courtes (une ligne, 255 caractères au plus) sont aussi relevées comme
+  **références par nom** : certains chargeurs LLM désignent un modèle par son dossier
+  (ex. `Qwen2.5-VL` ou `Qwen/Qwen2.5-VL-3B`).
 - Un fichier JSON illisible ou de structure inconnue est listé dans le résumé
   (« workflows ignorés ») sans interrompre l'analyse.
 
 ### 5.4 Correspondance (`matching`)
 
-Normalisation : séparateurs unifiés (`\`), casse ignorée, espaces de début et de fin retirés.
+Normalisation : séparateurs unifiés (`\`), casse ignorée, espaces de début et de fin retirés,
+forme Unicode NFC (accents composés ou décomposés équivalents).
+
+Les autres chemins d'un même fichier physique (liens, liens durs) sont des **alias** :
+une référence à un alias rend le fichier utilisé.
+
+Une **référence par nom** (sans extension de modèle) ne concerne que la catégorie `LLM` :
+elle rend utilisés tous les fichiers situés sous un dossier dont le chemin relatif, ou le
+nom, est égal à la référence (ou à son dernier segment).
 
 Pour chaque référence :
 
@@ -191,7 +202,9 @@ Un fichier sans aucun appel est **non utilisé**.
    Boutons : « Annuler » (par défaut, touche Échap) et « Supprimer définitivement ».
 3. Revalidation juste avant la suppression de chaque fichier :
    - le fichier existe toujours avec la même taille ;
-   - **non utilisés** : les workflows sont relus et le fichier n'est toujours cité par aucun ;
+   - **non utilisés** : les workflows sont relus et le fichier n'est toujours cité par aucun
+     (la correspondance ne tient compte que des fichiers encore présents) ; si un workflow
+     est illisible, la suppression est refusée, ses références étant inconnues ;
    - **doublons** : au moins une autre copie du groupe existe toujours et n'est pas
      sélectionnée ; l'outil refuse de supprimer toutes les copies d'un groupe. Si la copie
      sélectionnée est référencée, la confirmation le signale spécialement ;

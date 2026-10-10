@@ -56,6 +56,7 @@ class InventoryTest(TempHomeMixin, unittest.TestCase):
         os.link(folder / "v.pt", folder / "v_copy.pt")
         result = scan_models([ModelDir("vae", folder, "models")])
         self.assertEqual(len(result.files), 1)
+        self.assertEqual(result.aliases, [("v_copy.pt", result.files[0])])
 
     def test_file_key_normalizes(self):
         comfy = make_comfy(self.tmp, {"models/vae/v.pt": b"v"})

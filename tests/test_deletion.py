@@ -88,6 +88,53 @@ class DeletionTest(TempHomeMixin, unittest.TestCase):
         self.assertTrue(path.exists())
         self.assertIn("REFUSÉ: cité par un workflow", self._log_lines()[0])
 
+    def _two_same_name(self):
+        comfy = make_comfy(self.tmp, {
+            "models/checkpoints/dup.safetensors": b"dd",
+            "models/checkpoints/old/dup.safetensors": b"dd",
+            "user/default/workflows/w.json": json.dumps(
+                {"nodes": [{"id": 1, "type": "L", "widgets_values": ["dup.safetensors"]}]}),
+        })
+        root = comfy / "models" / "checkpoints"
+        a = ModelFile(root / "dup.safetensors", root / "dup.safetensors", "checkpoints", "dup.safetensors", 2, root)
+        b_path = root / "old" / "dup.safetensors"
+        b = ModelFile(b_path, b_path, "checkpoints", os.path.join("old", "dup.safetensors"), 2, root)
+        return comfy, a, b
+
+    def test_unused_checker_ignores_deleted_files(self):
+        comfy, a, b = self._two_same_name()
+        wf = comfy / "user" / "default" / "workflows"
+        os.remove(a.path)
+        checker = unused_checker(wf, [a, b])
+        self.assertEqual(checker(DeletionItem(b.path, 2, "unused")), "cité par un workflow")
+
+    def test_unused_checker_refuses_when_workflow_unreadable(self):
+        comfy, a, b = self._two_same_name()
+        wf = comfy / "user" / "default" / "workflows"
+        (wf / "broken.json").write_text("{", encoding="utf-8")
+        other = self._make("other.pt")
+        reason = unused_checker(wf, [a, b])(other)
+        self.assertIsNotNone(reason)
+        self.assertIn("illisible", reason)
+
+    def test_unused_checker_uses_llm_folder_references(self):
+        comfy = make_comfy(self.tmp, {
+            "models/LLM/Qwen2.5-VL/model.safetensors": b"q",
+            "user/default/workflows/w.json": json.dumps(
+                {"nodes": [{"id": 1, "type": "QwenVL", "widgets_values": ["Qwen2.5-VL"]}]}),
+        })
+        root = comfy / "models" / "LLM"
+        path = root / "Qwen2.5-VL" / "model.safetensors"
+        f = ModelFile(path, path, "LLM", os.path.join("Qwen2.5-VL", "model.safetensors"), 1, root)
+        reason = unused_checker(comfy / "user" / "default" / "workflows", [f])(DeletionItem(path, 1, "unused"))
+        self.assertEqual(reason, "cité par un workflow")
+
+    def test_log_failure_does_not_abort(self):
+        a, b = self._make("a.pt"), self._make("b.pt")
+        result = delete_files([a, b], accept, self.tmp)  # un dossier : écriture du journal impossible
+        self.assertEqual(result.deleted, [a, b])
+        self.assertEqual(len(result.log_errors), 2)
+
     def _group(self):
         a, b = self._make("a.pt", b"same"), self._make("b.pt", b"same")
         files = [ModelFile(i.path, i.path, "vae", i.path.name, 4, self.tmp) for i in (a, b)]

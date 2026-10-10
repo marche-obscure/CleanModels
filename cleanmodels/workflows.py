@@ -18,18 +18,32 @@ class Reference:
 @dataclass
 class WorkflowScan:
     references: list = field(default_factory=list)
+    name_references: list = field(default_factory=list)
     workflow_count: int = 0
     skipped: list = field(default_factory=list)
 
 
-def _model_strings(value) -> list:
-    """Chaînes ressemblant à un fichier modèle, sans doublon, dans l'ordre de rencontre."""
+MAX_NAME_LENGTH = 255
+
+
+def _is_model_string(text: str) -> bool:
+    return text.strip().lower().endswith(MODEL_EXTENSIONS)
+
+
+def _is_name_string(text: str) -> bool:
+    """Chaîne courte sur une ligne, sans extension de modèle (ex. nom de dossier LLM)."""
+    stripped = text.strip()
+    return 0 < len(stripped) <= MAX_NAME_LENGTH and "\n" not in stripped and not _is_model_string(stripped)
+
+
+def _strings(value, keep) -> list:
+    """Chaînes retenues par keep, sans doublon, dans l'ordre de rencontre."""
     found = []
     pending = [value]
     while pending:
         item = pending.pop(0)
         if isinstance(item, str):
-            if item.strip().lower().endswith(MODEL_EXTENSIONS) and item not in found:
+            if keep(item) and item not in found:
                 found.append(item)
         elif isinstance(item, dict):
             pending.extend(item.values())
@@ -52,21 +66,31 @@ def _is_api_format(data: dict) -> bool:
     return bool(data) and all(isinstance(v, dict) and "class_type" in v for v in data.values())
 
 
-def references_from_json(data: object, workflow: Path) -> list:
-    """Références d'un workflow déjà décodé. ValueError si la structure est inconnue."""
-    refs = []
+def _node_payloads(data: object) -> list:
+    """(id, type, valeurs) de chaque nœud. ValueError si la structure est inconnue."""
     if isinstance(data, dict) and isinstance(data.get("nodes"), list):
-        for node in _ui_nodes(data):
-            node_id, node_type = str(node.get("id", "")), str(node.get("type", ""))
-            for value in _model_strings(node.get("widgets_values")):
-                refs.append(Reference(value, workflow, node_id, node_type))
-    elif isinstance(data, dict) and _is_api_format(data):
-        for node_id, node in data.items():
-            for value in _model_strings(node.get("inputs")):
-                refs.append(Reference(value, workflow, str(node_id), str(node.get("class_type", ""))))
-    else:
-        raise ValueError("structure de workflow inconnue")
-    return refs
+        return [(str(n.get("id", "")), str(n.get("type", "")), n.get("widgets_values")) for n in _ui_nodes(data)]
+    if isinstance(data, dict) and _is_api_format(data):
+        return [(str(k), str(n.get("class_type", "")), n.get("inputs")) for k, n in data.items()]
+    raise ValueError("structure de workflow inconnue")
+
+
+def _references(data: object, workflow: Path, keep) -> list:
+    return [
+        Reference(value, workflow, node_id, node_type)
+        for node_id, node_type, payload in _node_payloads(data)
+        for value in _strings(payload, keep)
+    ]
+
+
+def references_from_json(data: object, workflow: Path) -> list:
+    """Références à des fichiers modèles. ValueError si la structure est inconnue."""
+    return _references(data, workflow, _is_model_string)
+
+
+def name_references_from_json(data: object, workflow: Path) -> list:
+    """Autres chaînes courtes, susceptibles de désigner un dossier de modèle LLM."""
+    return _references(data, workflow, _is_name_string)
 
 
 def scan_workflows(folder: Path) -> WorkflowScan:
@@ -77,9 +101,11 @@ def scan_workflows(folder: Path) -> WorkflowScan:
         try:
             data = json.loads(path.read_text(encoding="utf-8-sig"))
             refs = references_from_json(data, path)
+            names = name_references_from_json(data, path)
         except (OSError, UnicodeDecodeError, ValueError) as exc:
             scan.skipped.append((path, str(exc)))
             continue
         scan.workflow_count += 1
         scan.references.extend(refs)
+        scan.name_references.extend(names)
     return scan
