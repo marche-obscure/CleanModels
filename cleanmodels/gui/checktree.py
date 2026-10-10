@@ -173,6 +173,7 @@ class SortableTree(ttk.Frame):
 class CheckTree(SortableTree):
     def __init__(self, master, tree_title: str, columns: list, on_selection_change: Callable[[], None]):
         self._checked: set = set()
+        self._disabled: set = set()
         super().__init__(master, tree_title, columns)
         self._images = {state: _checkbox_image(self, state) for state in (UNCHECKED, CHECKED, PARTIAL)}
         self._on_change = on_selection_change
@@ -183,19 +184,26 @@ class CheckTree(SortableTree):
         return self._images[UNCHECKED].width()
 
     def _leaf_image(self, key: str):
+        if key in self._disabled:
+            return ""
         return self._images[CHECKED if key in self._checked else UNCHECKED]
+
+    def _checkable(self, keys) -> list:
+        return [k for k in keys if k not in self._disabled]
 
     def _group_image(self, group: str):
         return self._images[self.group_state(group)]
 
     def group_state(self, group: str) -> str:
-        children = self.tree.get_children(self._group_iid(group))
+        children = self._checkable(self.tree.get_children(self._group_iid(group)))
         checked = sum(1 for k in children if k in self._checked)
         if checked == 0:
             return UNCHECKED
         return CHECKED if checked == len(children) else PARTIAL
 
     def _set_checked(self, key: str, checked: bool) -> None:
+        if key in self._disabled:
+            return
         if checked:
             self._checked.add(key)
         else:
@@ -230,8 +238,10 @@ class CheckTree(SortableTree):
             self._changed(self._group_of[k] for k in leaves)
         return "break"
 
-    def set_rows(self, rows: list) -> None:
+    def set_rows(self, rows: list, disabled=()) -> None:
+        """disabled : clés affichées sans case à cocher (non sélectionnables)."""
         self._checked = set()
+        self._disabled = set(disabled)
         super().set_rows(rows)
         self._on_change()
 
@@ -247,7 +257,7 @@ class CheckTree(SortableTree):
     def toggle_group(self, group: str) -> None:
         children = self.tree.get_children(self._group_iid(group))
         target = self.group_state(group) != CHECKED
-        for key in children:
+        for key in self._checkable(children):
             self._set_checked(key, target)
         self._changed([group])
 

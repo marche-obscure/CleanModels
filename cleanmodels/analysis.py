@@ -7,7 +7,7 @@ from typing import Callable
 from .inventory import InventoryResult, scan_models
 from .junk import find_junk
 from .matching import UsageReport, match_usage
-from .roots import RootsResult, collect_model_dirs
+from .roots import RootsResult, collect_model_dirs, dir_key
 from .scope import workflow_sources
 from .workflows import WorkflowScan, scan_workflow_dirs
 
@@ -20,7 +20,9 @@ class AnalysisResult:
     workflows: WorkflowScan
     usage: UsageReport
     junk: list
-    workflow_sources: list = field(default_factory=list)
+    workflow_sources: list = field(default_factory=list)       # tous, même décochés
+    excluded_workflow_sources: list = field(default_factory=list)
+    excluded_model_dirs: list = field(default_factory=list)
 
     @property
     def total_bytes(self) -> int:
@@ -32,23 +34,33 @@ def run_analysis(
     junk_patterns: list,
     progress: Callable[[str], None] | None = None,
     extra_workflow_dirs: list = (),
+    excluded_dirs: set = frozenset(),
 ) -> AnalysisResult:
+    """excluded_dirs : dir_key des dossiers (workflows ou modèles) décochés par l'utilisateur."""
     def step(label: str) -> None:
         if progress is not None:
             progress(label)
 
     comfy = Path(comfy)
     step("Lecture des dossiers…")
-    roots = collect_model_dirs(comfy)
+    all_roots = collect_model_dirs(comfy)
+    roots = RootsResult(
+        dirs=[d for d in all_roots.dirs if dir_key(d.path) not in excluded_dirs],
+        missing=all_roots.missing,
+        warnings=all_roots.warnings,
+    )
+    excluded_models = [d for d in all_roots.dirs if dir_key(d.path) in excluded_dirs]
     step("Inventaire des modèles…")
     inventory = scan_models(roots.dirs)
     step("Lecture des workflows…")
     sources = workflow_sources(comfy, list(extra_workflow_dirs))
-    workflows = scan_workflow_dirs([s.path for s in sources])
+    excluded_sources = [s for s in sources if dir_key(s.path) in excluded_dirs]
+    workflows = scan_workflow_dirs([s.path for s in sources if s not in excluded_sources])
     step("Correspondance…")
     usage = match_usage(
         inventory.files, workflows.references + workflows.name_references, inventory.aliases
     )
     step("Fichiers parasites…")
     junk = find_junk(roots.dirs, junk_patterns)
-    return AnalysisResult(comfy, roots, inventory, workflows, usage, junk, sources)
+    return AnalysisResult(comfy, roots, inventory, workflows, usage, junk, sources,
+                          excluded_sources, excluded_models)

@@ -15,10 +15,10 @@ from ..analysis import run_analysis
 from ..deletion import delete_files
 from ..inventory import file_key
 from ..roots import validate_comfyui
-from ..scope import describe_scope, scope_lines
 from ..settings import load_settings, save_settings, settings_dir
 from .dialogs import confirm_deletion, show_details, show_report
 from .format import format_size
+from .scope_window import ScopeWindow
 from .style import apply_style
 from .tabs import DuplicatesTab, JunkTab, UnusedTab, UsedTab
 
@@ -36,8 +36,8 @@ class CleanModelsApp(tk.Tk):
         self.settings, settings_warning = load_settings()
         self.result = None
         self.busy = False
+        self.scope_window = None
         self._build()
-        self._refresh_workflow_list()
         self.path_var.set(self.settings.get("comfyui_path", ""))
         self.junk_tab.set_patterns(self.settings.get("junk_patterns", []))
         if settings_warning:
@@ -55,38 +55,11 @@ class CleanModelsApp(tk.Tk):
         self.path_entry.pack(side="left", fill="x", expand=True, padx=6)
         self.browse_button = ttk.Button(top, text="Parcourir…", command=self._browse)
         self.browse_button.pack(side="left")
-        self.analyze_button = ttk.Button(top, text="Analyser", command=self._analyze)
-        self.analyze_button.pack(side="left", padx=(6, 0))
+        self.scope_button = ttk.Button(top, text="Périmètre et analyse…", command=self.open_scope_window)
+        self.scope_button.pack(side="left", padx=(6, 0))
 
         self.validation = tk.Label(self, text="", fg="#b00020", anchor="w")
         self.validation.pack(fill="x", padx=10)
-
-        extra = ttk.LabelFrame(self, text="Dossiers de workflows supplémentaires (en plus de user/default/workflows)")
-        extra.pack(fill="x", padx=10, pady=(4, 0))
-        self.workflow_list = tk.Listbox(extra, height=3, selectmode="extended", activestyle="none")
-        self.workflow_list.pack(side="left", fill="x", expand=True, padx=6, pady=6)
-        buttons = ttk.Frame(extra)
-        buttons.pack(side="left", padx=6)
-        self.add_dir_button = ttk.Button(buttons, text="Ajouter un dossier…", command=self._browse_workflow_dir)
-        self.add_dir_button.pack(fill="x")
-        self.remove_dir_button = ttk.Button(
-            buttons, text="Retirer",
-            command=lambda: self.remove_workflow_dirs(
-                [self.workflow_list.get(i) for i in self.workflow_list.curselection()]
-            ),
-        )
-        self.remove_dir_button.pack(fill="x", pady=(4, 0))
-
-        scope = ttk.LabelFrame(self, text="Périmètre du contrôle")
-        scope.pack(fill="x", padx=10, pady=(4, 0))
-        self.scope_text = tk.Text(scope, height=9, wrap="none")
-        scope_scroll = ttk.Scrollbar(scope, orient="vertical", command=self.scope_text.yview)
-        scope_xscroll = ttk.Scrollbar(scope, orient="horizontal", command=self.scope_text.xview)
-        self.scope_text.configure(yscrollcommand=scope_scroll.set, xscrollcommand=scope_xscroll.set,
-                                  state="disabled")
-        scope_xscroll.pack(side="bottom", fill="x")
-        self.scope_text.pack(side="left", fill="x", expand=True)
-        scope_scroll.pack(side="left", fill="y")
 
         status = ttk.Frame(self)
         status.pack(fill="x", padx=10, pady=4)
@@ -97,7 +70,7 @@ class CleanModelsApp(tk.Tk):
 
         summary = ttk.Frame(self)
         summary.pack(fill="x", padx=10, pady=(0, 6))
-        self.summary_label = ttk.Label(summary, text="Choisissez le dossier d'installation de votre ComfyUI puis cliquez sur « Analyser ».",
+        self.summary_label = ttk.Label(summary, text="Choisissez le dossier d'installation de votre ComfyUI puis cliquez sur « Périmètre et analyse… ».",
                                        justify="left")
         self.summary_label.pack(side="left")
         self.details_button = ttk.Button(summary, text="Détails…", command=self._details, state="disabled")
@@ -106,14 +79,14 @@ class CleanModelsApp(tk.Tk):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.used_tab = UsedTab(self.notebook)
-        self.unused_tab = UnusedTab(self.notebook, self._delete, self._extra_workflow_dirs)
+        self.unused_tab = UnusedTab(self.notebook, self._delete, self.extra_workflow_dirs)
         self.duplicates_tab = DuplicatesTab(self.notebook, self._delete, self.run_background, self.set_busy)
         self.junk_tab = JunkTab(self.notebook, self._delete, self._save_patterns)
         self.tabs = [self.used_tab, self.unused_tab, self.duplicates_tab, self.junk_tab]
         for tab, title in zip(self.tabs, ["Utilisés", "Non utilisés", "Doublons", "Fichiers parasites"]):
             self.notebook.add(tab, text=title)
 
-        self.path_var.trace_add("write", lambda *_: (self._validate(), self.refresh_scope()))
+        self.path_var.trace_add("write", lambda *_: self._on_path_change())
 
     # ----- état ---------------------------------------------------------
 
@@ -121,7 +94,7 @@ class CleanModelsApp(tk.Tk):
         path = self.path_var.get().strip()
         message = "Choisissez le dossier d'installation de ComfyUI." if not path else validate_comfyui(Path(path))
         self.validation.configure(text=message or "")
-        self.analyze_button.configure(state="disabled" if message or self.busy else "normal")
+        self.scope_button.configure(state="disabled" if message or self.busy else "normal")
         return message is None
 
     def set_busy(self, busy: bool) -> None:
@@ -129,56 +102,59 @@ class CleanModelsApp(tk.Tk):
         state = "disabled" if busy else "normal"
         self.browse_button.configure(state=state)
         self.path_entry.configure(state=state)
-        self.add_dir_button.configure(state=state)
-        self.remove_dir_button.configure(state=state)
+        if self.scope_window is not None and busy:
+            self.scope_window.close()
         for tab in self.tabs:
             tab.set_enabled(not busy)
         self._validate()
 
     # ----- dossiers de workflows et périmètre ------------------------------
 
-    def _extra_workflow_dirs(self) -> list:
+    def comfy_path(self) -> Path:
+        return Path(self.path_var.get().strip())
+
+    def extra_workflow_dirs(self) -> list:
         return [str(p) for p in self.settings.get("extra_workflow_dirs", [])]
 
-    def _refresh_workflow_list(self) -> None:
-        self.workflow_list.delete(0, "end")
-        for folder in self._extra_workflow_dirs():
-            self.workflow_list.insert("end", folder)
+    def _on_path_change(self) -> None:
+        if not self._validate() and self.scope_window is not None:
+            self.scope_window.close()
+        elif self.scope_window is not None:
+            self.scope_window.refresh()
+
+    def _refresh_scope_window(self) -> None:
+        if self.scope_window is not None:
+            self.scope_window.refresh()
 
     def add_workflow_dir(self, folder: str) -> None:
         folder = str(Path(folder))
-        current = self._extra_workflow_dirs()
+        current = self.extra_workflow_dirs()
         if os.path.normcase(folder) not in {os.path.normcase(f) for f in current}:
             self.settings["extra_workflow_dirs"] = current + [folder]
             save_settings(self.settings)
-        self._refresh_workflow_list()
-        self.refresh_scope()
+        self._refresh_scope_window()
 
     def remove_workflow_dirs(self, folders: list) -> None:
         removed = {os.path.normcase(str(f)) for f in folders}
         self.settings["extra_workflow_dirs"] = [
-            f for f in self._extra_workflow_dirs() if os.path.normcase(f) not in removed
+            f for f in self.extra_workflow_dirs() if os.path.normcase(f) not in removed
         ]
         save_settings(self.settings)
-        self._refresh_workflow_list()
-        self.refresh_scope()
+        self._refresh_scope_window()
 
-    def _browse_workflow_dir(self) -> None:
-        folder = filedialog.askdirectory(parent=self, title="Dossier de workflows supplémentaire")
-        if folder:
-            self.add_workflow_dir(folder)
-
-    def refresh_scope(self) -> None:
-        path = self.path_var.get().strip()
-        if path and validate_comfyui(Path(path)) is None:
-            lines = scope_lines(describe_scope(Path(path), self._extra_workflow_dirs()))
+    def open_scope_window(self):
+        """Ouvre (ou ramène au premier plan) la fenêtre du périmètre, tous dossiers cochés."""
+        if self.busy or not self._validate():
+            return None
+        if self.scope_window is None:
+            self.scope_window = ScopeWindow(self)
         else:
-            lines = ["Indiquez le dossier d'installation de ComfyUI pour afficher le périmètre du contrôle."]
-            lines += [f"  Dossier de workflows ajouté : {f}" for f in self._extra_workflow_dirs()]
-        self.scope_text.configure(state="normal")
-        self.scope_text.delete("1.0", "end")
-        self.scope_text.insert("1.0", "\n".join(lines))
-        self.scope_text.configure(state="disabled")
+            self.scope_window.lift()
+        return self.scope_window
+
+    def scope_window_closed(self, window) -> None:
+        if self.scope_window is window:
+            self.scope_window = None
 
     def run_background(self, work: Callable, on_progress: Callable, on_done: Callable,
                        on_error: Callable | None = None) -> None:
@@ -237,14 +213,18 @@ class CleanModelsApp(tk.Tk):
         self.settings["junk_patterns"] = list(patterns)
         save_settings(self.settings)
 
-    def _analyze(self) -> None:
+    def _analyze(self, excluded_dirs: set = frozenset()) -> None:
+        self.start_analysis(excluded_dirs)
+
+    def start_analysis(self, excluded_dirs: set = frozenset()) -> None:
         if self.busy or not self._validate():
             return
         comfy = Path(self.path_var.get().strip())
         self.settings["comfyui_path"] = str(comfy)
         save_settings(self.settings)
         patterns = list(self.junk_tab.patterns)
-        extra_dirs = self._extra_workflow_dirs()
+        extra_dirs = self.extra_workflow_dirs()
+        excluded = set(excluded_dirs)
         self.set_busy(True)
         self.progress.start(12)
 
@@ -258,7 +238,8 @@ class CleanModelsApp(tk.Tk):
             self.set_busy(False)
 
         self.run_background(
-            lambda report: run_analysis(comfy, patterns, progress=report, extra_workflow_dirs=extra_dirs),
+            lambda report: run_analysis(comfy, patterns, progress=report, extra_workflow_dirs=extra_dirs,
+                                        excluded_dirs=excluded),
             lambda label: self.step_label.configure(text=label),
             on_done,
         )
@@ -272,6 +253,9 @@ class CleanModelsApp(tk.Tk):
             f"Modèles : {len(result.inventory.files)} ({format_size(result.total_bytes)})   —   "
             f"utilisés : {len(usage.used)}   non utilisés : {len(usage.unused)} ({format_size(unused_bytes)})",
         ]
+        excluded = len(result.excluded_model_dirs) + len(result.excluded_workflow_sources)
+        if excluded:
+            lines.append(f"Dossiers décochés (non analysés) : {excluded} — voir « Détails… ».")
         if roots.warnings or result.inventory.errors:
             lines.append("⚠ Des avertissements sont disponibles dans « Détails… ».")
         self.summary_label.configure(text="\n".join(lines))
@@ -282,10 +266,17 @@ class CleanModelsApp(tk.Tk):
             return
         r = self.result
         lines = ["Workflows de référence :"]
-        lines += [f"  {src.path}  ({src.origin}{'' if src.exists else ' — introuvable'})"
-                  for src in r.workflow_sources]
+        lines += [
+            f"  {src.path}  ({src.origin}"
+            f"{'' if src.exists else ' — introuvable'}"
+            f"{' — décoché' if src in r.excluded_workflow_sources else ''})"
+            for src in r.workflow_sources
+        ]
         lines += ["", "Dossiers analysés :"]
         lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.roots.dirs]
+        if r.excluded_model_dirs:
+            lines += ["", "Dossiers de modèles décochés (non analysés) :"]
+            lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.excluded_model_dirs]
         if r.roots.missing:
             lines += ["", "Dossiers déclarés introuvables :"]
             lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.roots.missing]

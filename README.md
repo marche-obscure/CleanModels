@@ -13,9 +13,11 @@ Dossiers analysés : `<ComfyUI>/models/` et les chemins de `extra_model_paths.ya
 symboliques et jonctions compris), limités à
 `checkpoints`, `controlnet`, `diffusion_models`, `LLM`, `model_patches`, `text_encoders`, `unet`, `vae`.
 
-Le panneau « Périmètre du contrôle » affiche, avant l'analyse, les dossiers de workflows de
-référence et les dossiers de modèles qui seront examinés, avec leur origine et la cible réelle
-des liens.
+Le bouton « Périmètre et analyse… » ouvre la fenêtre « Périmètre du contrôle » : elle affiche
+les dossiers de workflows de référence et les dossiers de modèles qui seront examinés, avec leur
+origine et la cible réelle des liens. Tout est coché par défaut ; décochez les dossiers à ne pas
+analyser, puis cliquez sur « Analyser ». Un dossier de workflows décoché est tout de même relu
+avant chaque suppression : un modèle qu'il utilise ne peut pas être supprimé.
 
 ## ⚠ Suppression définitive
 

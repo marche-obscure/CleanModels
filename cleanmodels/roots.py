@@ -42,7 +42,8 @@ def validate_comfyui(path: Path) -> str | None:
     return None
 
 
-def _real_key(path: Path) -> str:
+def dir_key(path: Path) -> str:
+    """Identifiant d'un dossier (chemin réel, casse normalisée)."""
     return os.path.normcase(os.path.realpath(path))
 
 
@@ -109,7 +110,7 @@ def collect_model_dirs(comfy: Path) -> RootsResult:
         if not model_dir.path.is_dir():
             result.missing.append(model_dir)
             continue
-        key = _real_key(model_dir.path)
+        key = dir_key(model_dir.path)
         if key not in seen:
             seen.add(key)
             result.dirs.append(model_dir)

@@ -96,6 +96,20 @@ class CheckTreeTest(unittest.TestCase):
         self.tree.sort_by("#0")
         self.assertEqual(self.tree.keys(), ["a", "b", "c"])
 
+    def test_disabled_rows_cannot_be_checked(self):
+        self.tree.set_rows([
+            ("a", "g", "a", ("1 o",), 1),
+            ("b", "g", "b", ("2 o",), 2),
+        ], disabled={"b"})
+        self.tree.toggle("b")
+        self.assertEqual(self.tree.checked_keys(), [])
+        self.tree.check_all()
+        self.assertEqual(self.tree.checked_keys(), ["a"])
+        self.assertEqual(self.tree.group_state("g"), "checked")
+        self.assertEqual(self.tree.tree.item("b", "image"), "")
+        self.tree.toggle_group("g")
+        self.assertEqual(self.tree.checked_keys(), [])
+
     def test_checkbox_images_are_large(self):
         self.assertGreaterEqual(self.tree.checkbox_size(), 18)
 

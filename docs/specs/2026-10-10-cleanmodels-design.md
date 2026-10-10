@@ -43,9 +43,15 @@ parasites, puis en lui permettant de les supprimer de façon contrôlée.
   ignoré, sans être retiré de la liste. Pas de détection automatique d'autres profils.
 - Le chemin `<ComfyUI>` est fourni par l'utilisateur (libellé « Dossier d'installation de
   Votre ComfyUI »).
-- Le panneau **Périmètre du contrôle** affiche avant l'analyse les dossiers de workflows de
-  référence et les dossiers de modèles analysés, avec leur origine (`models` ou section de
-  `extra_model_paths.yaml`) et la cible réelle des liens symboliques / jonctions.
+- La fenêtre **Périmètre du contrôle** (bouton « Périmètre et analyse… ») affiche les dossiers
+  de workflows de référence et les dossiers de modèles analysés, avec leur origine (`models` ou
+  section de `extra_model_paths.yaml`) et la cible réelle des liens symboliques / jonctions.
+  Chaque dossier disponible a une case, **cochée par défaut à chaque ouverture** (décochages non
+  mémorisés). Le bouton **Analyser** de cette fenêtre analyse les seuls dossiers cochés ; il est
+  grisé si aucun dossier de modèles n'est coché. Un dossier de modèles décoché est exclu de tout
+  (utilisés, non utilisés, doublons, parasites). Un dossier de workflows décoché n'est pas lu à
+  l'analyse, mais **reste relu lors de la revérification avant suppression** : un modèle qu'il
+  utilise ne peut pas être supprimé (avertissement affiché dans la fenêtre et dans la confirmation).
 
 ### Dossiers analysés
 

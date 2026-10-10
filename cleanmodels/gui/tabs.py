@@ -149,6 +149,12 @@ class UnusedTab(_DeletableTab):
         inventory = self._result.inventory
         files, aliases = list(inventory.files), list(inventory.aliases)
         notes = []
+        if self._result.excluded_workflow_sources:
+            notes.append(
+                "Dossiers de workflows décochés lors de l'analyse — ils sont quand même relus maintenant, "
+                "et la suppression d'un modèle qu'ils utilisent sera refusée :\n"
+                + "\n".join(str(src.path) for src in self._result.excluded_workflow_sources)
+            )
         if self._result.workflows.skipped:
             notes.append(
                 f"{len(self._result.workflows.skipped)} workflow(s) illisible(s) : la suppression sera refusée "
