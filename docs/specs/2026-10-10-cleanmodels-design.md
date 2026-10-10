@@ -269,6 +269,16 @@ Un fichier sans aucun appel est **non utilisé**.
   fichiers parasites réaffichés, cases à cocher remises à zéro.
 - Le journal `cleanmodels.log` reste en français quelle que soit la langue.
 
+### Mémoire de la carte vidéo
+
+- Détection sans dépendance : `nvidia-smi` (nom et mémoire exacts), puis registre Windows
+  (`HardwareInformation.qwMemorySize`, toutes marques, exact au-delà de 4 Go).
+- Ligne « Carte vidéo » dans la fenêtre principale : liste des cartes détectées (par défaut la
+  plus grande), saisie manuelle possible ; le choix est mémorisé (`gpu`, `vram_manual`).
+- Onglets Utilisés, Non utilisés et Doublons : colonne « ≥ VRAM » (⚠) et lignes en orange pour
+  les fichiers de taille **supérieure ou égale** à la mémoire ; la ligne de catégorie indique le
+  nombre de fichiers concernés. Mise à jour immédiate au changement de carte. Marquage indicatif.
+
 ## 7. Réglages
 
 Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.cleanmodels/`) :
@@ -280,7 +290,9 @@ Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.clea
   "junk_patterns": ["*.part", "*.crdownload", "*.tmp", "*.download"],
   "extra_workflow_dirs": ["E:/MesWorkflows"],
   "language": "fr",
-  "theme": "light"
+  "theme": "light",
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "vram_manual": 0
 }
 ```
 

@@ -10,6 +10,18 @@ DEFAULT_LANGUAGE = "fr"
 
 TEXTS = {
     "fr": {
+        # Carte vidéo
+        "gpu_label": "Carte vidéo :",
+        "gpu_none": "Aucune carte vidéo détectée",
+        "gpu_entry": "{name} — {size}",
+        "gpu_manual_entry": "Saisie manuelle — {size}",
+        "gpu_manual_button": "Saisir manuellement…",
+        "gpu_manual_title": "Mémoire de la carte vidéo",
+        "gpu_manual_prompt": "Mémoire de la carte vidéo, en Go :",
+        "col_vram": "≥ VRAM",
+        "vram_count": "{count} ≥ VRAM",
+        "vram_hint": "⚠ = fichier dont la taille est supérieure ou égale à la mémoire de la carte vidéo "
+                     "(indicatif : ComfyUI peut décharger en mémoire vive ou utiliser des versions GGUF).",
         # Fenêtre principale
         "install_folder": "Dossier d'installation de Votre ComfyUI :",
         "browse": "Parcourir…",
@@ -154,6 +166,17 @@ TEXTS = {
         "log_not_written": "{path} ({status}) : journal non écrit — {error}",
     },
     "en": {
+        "gpu_label": "Graphics card:",
+        "gpu_none": "No graphics card detected",
+        "gpu_entry": "{name} — {size}",
+        "gpu_manual_entry": "Manual entry — {size}",
+        "gpu_manual_button": "Enter manually…",
+        "gpu_manual_title": "Graphics card memory",
+        "gpu_manual_prompt": "Graphics card memory, in GB:",
+        "col_vram": "≥ VRAM",
+        "vram_count": "{count} ≥ VRAM",
+        "vram_hint": "⚠ = file whose size is greater than or equal to the graphics card memory "
+                     "(indicative: ComfyUI can offload to system RAM or use GGUF versions).",
         "install_folder": "Your ComfyUI installation folder:",
         "browse": "Browse…",
         "browse_title": "ComfyUI installation folder",
@@ -290,6 +313,17 @@ TEXTS = {
         "log_not_written": "{path} ({status}): log not written — {error}",
     },
     "de": {
+        "gpu_label": "Grafikkarte:",
+        "gpu_none": "Keine Grafikkarte erkannt",
+        "gpu_entry": "{name} — {size}",
+        "gpu_manual_entry": "Manuelle Eingabe — {size}",
+        "gpu_manual_button": "Manuell eingeben…",
+        "gpu_manual_title": "Grafikspeicher",
+        "gpu_manual_prompt": "Speicher der Grafikkarte, in GB:",
+        "col_vram": "≥ VRAM",
+        "vram_count": "{count} ≥ VRAM",
+        "vram_hint": "⚠ = Datei, deren Größe mindestens dem Grafikspeicher entspricht "
+                     "(Hinweis: ComfyUI kann in den Arbeitsspeicher auslagern oder GGUF-Versionen nutzen).",
         "install_folder": "Installationsordner Ihres ComfyUI:",
         "browse": "Durchsuchen…",
         "browse_title": "ComfyUI-Installationsordner",

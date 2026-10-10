@@ -9,6 +9,7 @@ from typing import Callable
 from ..constants import DEFAULT_JUNK_PATTERNS
 from ..deletion import DeletionItem, duplicates_checker, fully_selected_groups, junk_checker, unused_checker
 from ..duplicates import Cancelled, find_duplicates
+from ..gpu import exceeds_vram
 from ..i18n import localized, t, tn
 from ..inventory import file_key
 from ..junk import find_junk
@@ -33,6 +34,10 @@ def _describe_workflow(path, sources: list) -> str:
     return str(path)
 
 
+def _mark_vram(table, vram) -> None:
+    table.set_marked({k for k in table.keys() if exceeds_vram(table.size_of(k), vram)})
+
+
 def _category_order(rows: list) -> list:
     """Lignes (clé, groupe, nom, valeurs, taille) triées par catégorie puis par nom."""
     return sorted(rows, key=lambda r: (r[1].casefold(), r[2].casefold()))
@@ -46,22 +51,29 @@ class UsedTab(ttk.Frame):
             ("size_n", t("col_size"), 90),
             ("calls_n", t("col_calls"), 70),
             ("workflows_n", t("col_workflows"), 80),
+            ("vram", t("col_vram"), 80),
         ])
         ttk.Label(self, text=t("used_hint")).pack(anchor="w", padx=6, pady=4)
         self.table.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self.table.bind_double_click(self._details)
         self._usages: dict = {}
         self._sources: list = []
+        self._vram = None
 
     def show(self, result) -> None:
         self._sources = list(result.workflow_sources)
         self._usages = {file_key(u.file.path): u for u in result.usage.used}
         self.table.set_rows(_category_order([
             (key, u.file.category, u.file.rel_path,
-             (str(u.file.root), format_size(u.file.size), u.calls, len(u.workflows)), u.file.size)
+             (str(u.file.root), format_size(u.file.size), u.calls, len(u.workflows), ""), u.file.size)
             for key, u in self._usages.items()
         ]))
         self.table.sort_by("calls_n", descending=True)
+        _mark_vram(self.table, self._vram)
+
+    def set_vram(self, vram) -> None:
+        self._vram = vram
+        _mark_vram(self.table, vram)
 
     def forget(self, keys: list) -> None:
         self.table.remove_keys(keys)
@@ -87,6 +99,7 @@ class _DeletableTab(ttk.Frame):
         super().__init__(master)
         self.on_delete = on_delete
         self.enabled = True
+        self._vram = None
         self.top = ttk.Frame(self)
         self.top.pack(fill="x", padx=6, pady=4)
         bar = ttk.Frame(self)
@@ -116,6 +129,12 @@ class _DeletableTab(ttk.Frame):
     def forget(self, keys: list) -> None:
         self.table.remove_keys(keys)
 
+    def set_vram(self, vram) -> None:
+        """Mémoire vidéo de référence ; seuls les onglets ayant une colonne « vram » marquent."""
+        self._vram = vram
+        if "vram" in self.table.tree["columns"]:
+            _mark_vram(self.table, vram)
+
     def _delete(self) -> None:
         raise NotImplementedError
 
@@ -125,6 +144,7 @@ class UnusedTab(_DeletableTab):
         super().__init__(master, t("col_category_name"), [
             ("root", t("col_root"), 340),
             ("size_n", t("col_size"), 90),
+            ("vram", t("col_vram"), 80),
             ("path", t("col_full_path"), 420),
         ], on_delete)
         self._files: dict = {}
@@ -135,10 +155,11 @@ class UnusedTab(_DeletableTab):
         self._result = result
         self._files = {file_key(f.path): f for f in result.usage.unused}
         self.table.set_rows(_category_order([
-            (key, f.category, f.rel_path, (str(f.root), format_size(f.size), str(f.path)), f.size)
+            (key, f.category, f.rel_path, (str(f.root), format_size(f.size), "", str(f.path)), f.size)
             for key, f in self._files.items()
         ]))
         self.table.sort_by("size_n", descending=True)
+        self.set_vram(self._vram)
 
     def _delete(self) -> None:
         files = [self._files[k] for k in self.table.checked_keys()]
@@ -162,6 +183,7 @@ class DuplicatesTab(_DeletableTab):
             ("path", t("col_path"), 520),
             ("size_n", t("col_size"), 90),
             ("referenced", t("col_referenced"), 110),
+            ("vram", t("col_vram"), 80),
         ], on_delete)
         self._run_background = run_background
         self._set_busy = set_busy
@@ -241,8 +263,9 @@ class DuplicatesTab(_DeletableTab):
                 self._entries[key] = (group, f)
                 referenced = t("yes") if key in self._used_keys else ""
                 label = t("dup_group", number=number, name=group.files[0].path.name)
-                rows.append((key, label, f.path.name, (str(f.path), format_size(f.size), referenced), f.size))
+                rows.append((key, label, f.path.name, (str(f.path), format_size(f.size), referenced, ""), f.size))
         self.table.set_rows(rows)
+        self.set_vram(self._vram)
         self.progress.configure(value=100)
         wasted = sum(g.size * (len(g.files) - 1) for g in groups)
         self.status.configure(text=tn("dup_result", len(groups), size=format_size(wasted)))

@@ -10,19 +10,36 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+from ..i18n import t, tn
 from .format import format_size
 from .style import palette
 
 GROUP_PREFIX = "group::"
+MARK_COLUMN = "vram"
+MARK_SYMBOL = "⚠"
+MARK_TAG = "over_vram"
 CHECKBOX_SIZE = 18
 
 UNCHECKED, CHECKED, PARTIAL = "unchecked", "checked", "partial"
 
 
+# Images conservées pour toute la durée du programme : une image Tk libérée par le ramasse-miettes
+# depuis un fil d'arrière-plan appellerait Tk hors du fil principal (erreur, voire blocage).
+_IMAGE_CACHE: dict = {}
+
+
 def _checkbox_image(master, state: str, size: int = CHECKBOX_SIZE) -> tk.PhotoImage:
-    """Case à cocher dessinée pixel par pixel (indépendante de la police)."""
-    image = tk.PhotoImage(master=master, width=size, height=size)
+    """Case à cocher (en cache par interpréteur Tk, couleurs et état)."""
     colors = palette()
+    key = (str(master.tk), colors["muted"], colors["field"], colors["check"], state, size)
+    if key not in _IMAGE_CACHE:
+        _IMAGE_CACHE[key] = _draw_checkbox(master, state, size, colors)
+    return _IMAGE_CACHE[key]
+
+
+def _draw_checkbox(master, state: str, size: int, colors: dict) -> tk.PhotoImage:
+    """Case à cocher dessinée pixel par pixel (indépendante de la police)."""
+    image = tk.PhotoImage(master=master.winfo_toplevel(), width=size, height=size)
     border, fill, mark = colors["muted"], colors["field"], "#ffffff"
     if state == CHECKED:
         border = fill = colors["check"]
@@ -55,6 +72,7 @@ class SortableTree(ttk.Frame):
             self.tree.column(col_id, width=width, anchor="e" if numeric else "w", stretch=not numeric)
             self.tree.heading(col_id, text=title, command=lambda c=col_id: self.sort_by(c))
         self.tree.tag_configure("group", font="TkHeadingFont", foreground=palette()["fg"])
+        self.tree.tag_configure(MARK_TAG, foreground=palette()["vram"])
         yscroll = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         xscroll = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
@@ -66,6 +84,7 @@ class SortableTree(ttk.Frame):
         self._sizes: dict = {}
         self._names: dict = {}
         self._group_of: dict = {}
+        self._marked: set = set()
         self._sort_state: tuple = (None, False)
 
     # ----- construction ---------------------------------------------------
@@ -84,6 +103,7 @@ class SortableTree(ttk.Frame):
         """rows : liste de (clé, groupe, nom, valeurs des colonnes, taille en octets)."""
         self.tree.delete(*self.tree.get_children())
         self._sizes, self._names, self._group_of = {}, {}, {}
+        self._marked = set()
         for key, group, name, values, size in rows:
             parent = self._group_iid(group)
             if not self.tree.exists(parent):
@@ -98,8 +118,11 @@ class SortableTree(ttk.Frame):
     def _refresh_group(self, group: str) -> None:
         children = self.tree.get_children(self._group_iid(group))
         total = sum(self._sizes.get(k, 0) for k in children)
-        count = len(children)
-        label = f" {group}   ({count} fichier{'s' if count > 1 else ''} – {format_size(total)})"
+        label = f" {group}   ({tn('files_count', len(children), size=format_size(total))}"
+        marked = sum(1 for k in children if k in self._marked)
+        if marked:
+            label += f" – {t('vram_count', count=marked)}"
+        label += ")"
         self.tree.item(self._group_iid(group), text=label, image=self._group_image(group))
 
     # ----- lecture --------------------------------------------------------
@@ -119,6 +142,21 @@ class SortableTree(ttk.Frame):
     def is_group(self, iid: str) -> bool:
         return iid.startswith(GROUP_PREFIX)
 
+    def size_of(self, key: str) -> int:
+        return self._sizes.get(key, 0)
+
+    def set_marked(self, keys: set) -> None:
+        """Marque (⚠ dans la colonne « vram », couleur dédiée) les lignes dont la clé est dans keys."""
+        self._marked = set(keys) & set(self.keys())
+        has_column = MARK_COLUMN in self.tree["columns"]
+        for key in self.keys():
+            marked = key in self._marked
+            if has_column:
+                self.tree.set(key, MARK_COLUMN, MARK_SYMBOL if marked else "")
+            self.tree.item(key, tags=(MARK_TAG,) if marked else ())
+        for group in self.groups():
+            self._refresh_group(group)
+
     # ----- modification ---------------------------------------------------
 
     def remove_keys(self, keys: list) -> None:
@@ -129,6 +167,7 @@ class SortableTree(ttk.Frame):
                 self.tree.delete(key)
             self._sizes.pop(key, None)
             self._names.pop(key, None)
+            self._marked.discard(key)
             self._group_of.pop(key, None)
         for group in touched:
             if self.tree.get_children(self._group_iid(group)):

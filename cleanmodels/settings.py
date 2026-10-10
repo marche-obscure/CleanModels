@@ -30,6 +30,8 @@ def _defaults() -> dict:
         "extra_workflow_dirs": [],
         "language": DEFAULT_LANGUAGE,
         "theme": "light",
+        "gpu": "",
+        "vram_manual": 0,
     }
 
 

@@ -7,12 +7,13 @@ import traceback
 import tkinter as tk
 from datetime import datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
 
 from .. import __version__, i18n
 from ..analysis import run_analysis
 from ..deletion import delete_files
+from ..gpu import detect_gpus
 from ..i18n import LANGUAGES, localized, t
 from ..inventory import file_key
 from ..roots import validate_comfyui
@@ -27,6 +28,11 @@ from .tabs import DuplicatesTab, JunkTab, UnusedTab, UsedTab
 LOG_FILE = "cleanmodels.log"
 POLL_MS = 100
 THEME_KEYS = ("light", "dark")
+MANUAL_GPU = "__manual__"
+
+# Variables Tk des interfaces remplacées : gardées en vie pour qu'elles ne soient jamais libérées
+# par le ramasse-miettes depuis un fil d'arrière-plan (appel Tk hors du fil principal).
+_RETIRED: list = []
 
 
 def window_layout(screen_width: int, screen_height: int) -> tuple:
@@ -51,6 +57,7 @@ class CleanModelsApp(tk.Tk):
         self.result = None
         self.busy = False
         self.scope_window = None
+        self.gpus = detect_gpus()
         self._build()
         self.path_var.set(self.settings.get("comfyui_path", ""))
         self.junk_tab.set_patterns(self.settings.get("junk_patterns", []))
@@ -100,6 +107,18 @@ class CleanModelsApp(tk.Tk):
         self.validation = tk.Label(self.body, text="", fg=palette()["warn"], anchor="w")
         self.validation.pack(fill="x", padx=10)
 
+        gpu_row = ttk.Frame(self.body)
+        gpu_row.pack(fill="x", padx=10, pady=(2, 0))
+        ttk.Label(gpu_row, text=t("gpu_label")).pack(side="left")
+        self.gpu_var = tk.StringVar()
+        self.gpu_box = ttk.Combobox(gpu_row, textvariable=self.gpu_var, state="readonly", width=48)
+        self.gpu_box.pack(side="left", padx=6)
+        self.gpu_box.bind("<<ComboboxSelected>>", lambda _e: self._on_gpu_selected())
+        self.gpu_manual_button = ttk.Button(gpu_row, text=t("gpu_manual_button"), command=self._ask_manual_vram)
+        self.gpu_manual_button.pack(side="left")
+        tk.Label(self.body, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
+                 wraplength=1000).pack(fill="x", padx=10)
+
         status = ttk.Frame(self.body)
         status.pack(fill="x", padx=10, pady=4)
         self.progress = ttk.Progressbar(status, mode="indeterminate", length=200)
@@ -125,6 +144,65 @@ class CleanModelsApp(tk.Tk):
             self.notebook.add(tab, text=t(key))
 
         self.path_var.trace_add("write", lambda *_: self._on_path_change())
+        self._refresh_gpu_choices()
+
+    # ----- carte vidéo --------------------------------------------------
+
+    def _gpu_choices(self) -> list:
+        """(identifiant, libellé) des cartes détectées, plus la saisie manuelle si elle existe."""
+        choices = [(g.name, t("gpu_entry", name=g.name, size=format_size(g.memory))) for g in self.gpus]
+        manual = int(self.settings.get("vram_manual") or 0)
+        if manual > 0:
+            choices.append((MANUAL_GPU, t("gpu_manual_entry", size=format_size(manual))))
+        return choices
+
+    def _selected_gpu(self) -> str | None:
+        ids = [gpu_id for gpu_id, _ in self._gpu_choices()]
+        wanted = self.settings.get("gpu", "")
+        if wanted in ids:
+            return wanted
+        return ids[0] if ids else None
+
+    def vram(self) -> int | None:
+        """Mémoire vidéo de référence en octets, ou None si inconnue."""
+        selected = self._selected_gpu()
+        if selected == MANUAL_GPU:
+            return int(self.settings.get("vram_manual") or 0) or None
+        for g in self.gpus:
+            if g.name == selected:
+                return g.memory
+        return None
+
+    def _refresh_gpu_choices(self) -> None:
+        choices = self._gpu_choices()
+        self.gpu_box.configure(values=[label for _, label in choices])
+        selected = self._selected_gpu()
+        labels = dict(choices)
+        self.gpu_var.set(labels.get(selected, t("gpu_none")))
+        for tab in self.tabs:
+            tab.set_vram(self.vram())
+
+    def _on_gpu_selected(self) -> None:
+        by_label = {label: gpu_id for gpu_id, label in self._gpu_choices()}
+        if self.gpu_var.get() in by_label:
+            self.select_gpu(by_label[self.gpu_var.get()])
+
+    def select_gpu(self, gpu_id: str) -> None:
+        self.settings["gpu"] = gpu_id
+        save_settings(self.settings)
+        self._refresh_gpu_choices()
+
+    def set_manual_vram(self, size: int) -> None:
+        self.settings["vram_manual"] = int(size)
+        self.settings["gpu"] = MANUAL_GPU
+        save_settings(self.settings)
+        self._refresh_gpu_choices()
+
+    def _ask_manual_vram(self) -> None:
+        value = simpledialog.askfloat(t("gpu_manual_title"), t("gpu_manual_prompt"), parent=self,
+                                      minvalue=0.1, maxvalue=4096)
+        if value:
+            self.set_manual_vram(int(value * 1024 ** 3))
 
     # ----- langue et thème ----------------------------------------------
 
@@ -160,6 +238,7 @@ class CleanModelsApp(tk.Tk):
         reopen_scope = self.scope_window is not None
         if reopen_scope:
             self.scope_window.close()
+        self._retire_variables()
         self.body.destroy()
 
         apply_style(self, self._theme())
@@ -176,6 +255,16 @@ class CleanModelsApp(tk.Tk):
         self.notebook.select(tab_index)
         if reopen_scope:
             self.open_scope_window()
+
+    def _retire_variables(self) -> None:
+        """Conserve les variables Tk de l'interface courante avant sa destruction."""
+        _RETIRED.extend(value for value in vars(self).values() if isinstance(value, tk.Variable))
+        for tab in getattr(self, "tabs", []):
+            _RETIRED.extend(value for value in vars(tab).values() if isinstance(value, tk.Variable))
+
+    def destroy(self) -> None:
+        self._retire_variables()
+        super().destroy()
 
     # ----- état ---------------------------------------------------------
 

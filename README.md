@@ -25,6 +25,10 @@ contrôle » à sa droite ; elle reste ouverte après l'analyse.
 En haut à droite de la fenêtre principale : **Thème** (Clair / Sombre) et **Langue**
 (Français / English / Deutsch). Les choix sont mémorisés ; le journal reste en français.
 
+**Carte vidéo** : la mémoire est lue automatiquement (nvidia-smi, sinon registre Windows) ;
+choisissez la carte de référence ou saisissez la valeur à la main. Les fichiers dont la taille
+est supérieure ou égale à cette mémoire sont marqués ⚠ et colorés en orange (indicatif).
+
 ## ⚠ Suppression définitive
 
 Les fichiers supprimés ne passent **pas** par la Corbeille. Chaque suppression demande une

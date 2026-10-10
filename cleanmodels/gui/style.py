@@ -17,7 +17,7 @@ LIGHT = {
     "accent": "#2e7d32", "accent_active": "#388e3c",
     "danger": "#d32f2f", "danger_active": "#e53935",
     "disabled_bg": "#d6d6d6", "disabled_fg": "#8a8a8a",
-    "warn": "#b00020", "check": "#1a73e8",
+    "warn": "#b00020", "check": "#1a73e8", "vram": "#b35c00",
 }
 DARK = {
     "bg": "#1e1f22", "fg": "#e6e6e6", "field": "#2b2d31", "heading": "#34363b",
@@ -25,7 +25,7 @@ DARK = {
     "accent": "#2e7d32", "accent_active": "#43a047",
     "danger": "#d32f2f", "danger_active": "#ef5350",
     "disabled_bg": "#3a3c40", "disabled_fg": "#7a7d82",
-    "warn": "#ff6b6b", "check": "#4c8bf5",
+    "warn": "#ff6b6b", "check": "#4c8bf5", "vram": "#ffa94d",
 }
 THEMES = {"light": LIGHT, "dark": DARK}
 
@@ -98,5 +98,6 @@ def apply_style(root, theme: str = "light") -> None:
         ("*TCombobox*Listbox.background", p["field"]),
         ("*TCombobox*Listbox.foreground", p["fg"]),
         ("*TCombobox*Listbox.selectBackground", p["select"]),
+        ("*TCombobox*Listbox.selectForeground", p["select_fg"]),
     ):
         root.option_add(pattern, value)

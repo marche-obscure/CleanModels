@@ -15,8 +15,14 @@ def workflow(*values):
 class AppTest(TempHomeMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
+        from cleanmodels.gpu import Gpu
         from cleanmodels.gui.app import CleanModelsApp
 
+        # Cartes simulées : 3 octets (unused.pt fait 3 octets) et 1 octet.
+        self.gpus = [Gpu("Carte A", 3), Gpu("Carte B", 1)]
+        self._gpu_patch = mock.patch("cleanmodels.gui.app.detect_gpus", return_value=self.gpus)
+        self._gpu_patch.start()
+        self.addCleanup(self._gpu_patch.stop)
         try:
             self.app = CleanModelsApp()
         except tk.TclError as exc:
@@ -189,6 +195,75 @@ class AppTest(TempHomeMixin, unittest.TestCase):
     def test_font_is_12_points(self):
         import tkinter.font as tkfont
         self.assertEqual(tkfont.nametofont("TkDefaultFont", root=self.app).cget("size"), 12)
+
+    def _vram_marks(self, tab):
+        table = tab.table
+        return {table.tree.item(k, "text").strip(): table.tree.set(k, "vram") for k in table.keys()}
+
+    def test_largest_gpu_selected_by_default(self):
+        self.assertEqual(self.app.vram(), 3)
+        self.assertIn("Carte A", self.app.gpu_var.get())
+
+    def test_files_at_or_above_vram_are_marked(self):
+        self._analyze()
+        self.assertEqual(self._vram_marks(self.app.unused_tab),
+                         {"copy.safetensors": "", "unused.pt": "⚠"})
+        self.assertEqual(self._vram_marks(self.app.used_tab), {"used.safetensors": ""})
+        self.assertIn("1 ≥ VRAM", self.app.unused_tab.table.group_label("vae"))
+
+    def test_changing_gpu_updates_marks_and_is_saved(self):
+        self._analyze()
+        self.app.select_gpu("Carte B")
+        self.assertEqual(self.app.vram(), 1)
+        self.assertEqual(set(self._vram_marks(self.app.unused_tab).values()), {"⚠"})
+        self.assertEqual(self._settings()["gpu"], "Carte B")
+
+    def test_manual_vram(self):
+        self._analyze()
+        self.app.set_manual_vram(2)
+        self.assertEqual(self.app.vram(), 2)
+        self.assertEqual(self._vram_marks(self.app.unused_tab),
+                         {"copy.safetensors": "⚠", "unused.pt": "⚠"})
+        self.assertEqual(self._settings()["vram_manual"], 2)
+        self.assertEqual(self._settings()["gpu"], "__manual__")
+
+    def test_duplicates_marked_too(self):
+        self.app.select_gpu("Carte B")
+        self._analyze()
+        tab = self.app.duplicates_tab
+        tab._search()
+        self._wait_idle()
+        self.assertEqual(set(self._vram_marks(tab).values()), {"⚠"})
+
+    def test_no_gpu_detected(self):
+        from cleanmodels.gui.app import CleanModelsApp
+
+        self.app.destroy()
+        with mock.patch("cleanmodels.gui.app.detect_gpus", return_value=[]):
+            self.app = CleanModelsApp()
+        self.app.withdraw()
+        self.assertIsNone(self.app.vram())
+        self.assertIn("Aucune carte", self.app.gpu_var.get())
+        self._analyze()
+        self.assertEqual(set(self._vram_marks(self.app.unused_tab).values()), {""})
+
+    def test_rebuild_leaves_nothing_freed_from_worker_thread(self):
+        import gc
+        import sys
+        import threading
+
+        errors = []
+        previous_hook = sys.unraisablehook
+        sys.unraisablehook = lambda info: errors.append(info.exc_value)
+        try:
+            self.app.set_theme("dark")
+            self.app.set_language("en")
+            worker = threading.Thread(target=gc.collect)
+            worker.start()
+            worker.join(10)
+        finally:
+            sys.unraisablehook = previous_hook
+        self.assertEqual([e for e in errors if isinstance(e, RuntimeError)], [])
 
     def test_install_label_text(self):
         self.assertEqual(self.app.path_label["text"], "Dossier d'installation de Votre ComfyUI :")

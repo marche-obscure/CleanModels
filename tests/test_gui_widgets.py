@@ -114,6 +114,70 @@ class CheckTreeTest(unittest.TestCase):
         self.assertGreaterEqual(self.tree.checkbox_size(), 18)
 
 
+class CheckboxImageLifetimeTest(unittest.TestCase):
+    def test_discarded_tree_images_never_freed_from_worker_thread(self):
+        import gc
+        import sys
+        import threading
+
+        from cleanmodels.gui.checktree import CheckTree
+
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(f"pas d'affichage disponible : {exc}")
+        root.withdraw()
+        errors = []
+        previous_hook = sys.unraisablehook
+        sys.unraisablehook = lambda info: errors.append(info.exc_value)
+        try:
+            tree = CheckTree(root, "Nom", [], on_selection_change=lambda: None)
+            tree.destroy()
+            del tree
+            worker = threading.Thread(target=gc.collect)
+            worker.start()
+            worker.join(10)
+        finally:
+            sys.unraisablehook = previous_hook
+            root.destroy()
+        self.assertEqual([e for e in errors if isinstance(e, RuntimeError)], [])
+
+
+class MarkedRowsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+        except tk.TclError as exc:
+            raise unittest.SkipTest(f"pas d'affichage disponible : {exc}")
+        cls.root.withdraw()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.root.destroy()
+
+    def test_set_marked(self):
+        from cleanmodels.gui.checktree import SortableTree
+
+        tree = SortableTree(self.root, "Nom", [("size_n", "Taille", 80), ("vram", "≥ VRAM", 60)])
+        tree.set_rows([
+            ("a", "checkpoints", "a.pt", ("1 o", ""), 1),
+            ("b", "checkpoints", "b.pt", ("2 o", ""), 2),
+        ])
+        tree.set_marked({"a"})
+        self.assertEqual(tree.tree.set("a", "vram"), "⚠")
+        self.assertEqual(tree.tree.set("b", "vram"), "")
+        self.assertIn("over_vram", tree.tree.item("a", "tags"))
+        self.assertNotIn("over_vram", tree.tree.item("b", "tags"))
+        self.assertIn("1 ≥ VRAM", tree.group_label("checkpoints"))
+        tree.remove_keys(["b"])
+        self.assertIn("1 ≥ VRAM", tree.group_label("checkpoints"))
+        tree.set_marked(set())
+        self.assertEqual(tree.tree.set("a", "vram"), "")
+        self.assertNotIn("VRAM", tree.group_label("checkpoints"))
+        tree.destroy()
+
+
 class StyleTest(unittest.TestCase):
     def setUp(self):
         try:
