@@ -10,91 +10,183 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
-from .. import __version__
+from .. import __version__, i18n
 from ..analysis import run_analysis
 from ..deletion import delete_files
+from ..i18n import LANGUAGES, localized, t
 from ..inventory import file_key
 from ..roots import validate_comfyui
+from ..scope import origin_label
 from ..settings import load_settings, save_settings, settings_dir
 from .dialogs import confirm_deletion, show_details, show_report
 from .format import format_size
 from .scope_window import ScopeWindow
-from .style import apply_style
+from .style import apply_style, palette
 from .tabs import DuplicatesTab, JunkTab, UnusedTab, UsedTab
 
 LOG_FILE = "cleanmodels.log"
 POLL_MS = 100
+THEME_KEYS = ("light", "dark")
+
+
+def window_layout(screen_width: int, screen_height: int) -> tuple:
+    """Géométries (principale, périmètre) : principale à gauche (60 %), périmètre collé à droite."""
+    height = max(screen_height - 110, 400)
+    main_width = int(screen_width * 0.6)
+    scope_x = main_width + 16  # largeur des bordures de fenêtre Windows
+    scope_width = max(screen_width - scope_x - 16, 400)
+    return f"{main_width}x{height}+0+0", f"{scope_width}x{height}+{scope_x}+0"
 
 
 class CleanModelsApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        apply_style(self)
-        self.title(f"CleanModels {__version__}")
-        self.geometry("1400x960")
-        self.minsize(1000, 600)
         self.settings, settings_warning = load_settings()
+        i18n.set_language(self.settings.get("language", i18n.DEFAULT_LANGUAGE))
+        apply_style(self, self._theme())
+        self.title(f"CleanModels {__version__}")
+        self.minsize(700, 500)
+        main_geometry, self._scope_geometry = window_layout(self.winfo_screenwidth(), self.winfo_screenheight())
+        self.geometry(main_geometry)
         self.result = None
         self.busy = False
         self.scope_window = None
         self._build()
         self.path_var.set(self.settings.get("comfyui_path", ""))
         self.junk_tab.set_patterns(self.settings.get("junk_patterns", []))
+        self.open_scope_window()
         if settings_warning:
-            self.after(200, lambda: messagebox.showwarning("Réglages", settings_warning, parent=self))
+            self.after(200, lambda: messagebox.showwarning(t("settings_title"), localized(settings_warning),
+                                                           parent=self))
+
+    def _theme(self) -> str:
+        theme = self.settings.get("theme", "light")
+        return theme if theme in THEME_KEYS else "light"
 
     # ----- construction -------------------------------------------------
 
     def _build(self) -> None:
-        top = ttk.Frame(self)
-        top.pack(fill="x", padx=10, pady=(10, 0))
-        self.path_label = ttk.Label(top, text="Dossier d'installation de Votre ComfyUI :")
+        """Construit tout le contenu dans self.body (détruit et reconstruit au changement de langue/thème)."""
+        self.body = ttk.Frame(self)
+        self.body.pack(fill="both", expand=True)
+
+        prefs = ttk.Frame(self.body)
+        prefs.pack(fill="x", padx=10, pady=(8, 0))
+        self.language_var = tk.StringVar(value=LANGUAGES[i18n.get_language()])
+        self.language_box = ttk.Combobox(prefs, textvariable=self.language_var, state="readonly", width=10,
+                                         values=list(LANGUAGES.values()))
+        self.language_box.pack(side="right")
+        ttk.Label(prefs, text=t("language")).pack(side="right", padx=(16, 4))
+        self.theme_var = tk.StringVar(value=t(f"theme_{self._theme()}"))
+        self.theme_box = ttk.Combobox(prefs, textvariable=self.theme_var, state="readonly", width=10,
+                                      values=[t(f"theme_{key}") for key in THEME_KEYS])
+        self.theme_box.pack(side="right")
+        ttk.Label(prefs, text=t("theme")).pack(side="right", padx=(0, 4))
+        self.language_box.bind("<<ComboboxSelected>>", lambda _e: self._on_language_selected())
+        self.theme_box.bind("<<ComboboxSelected>>", lambda _e: self._on_theme_selected())
+
+        top = ttk.Frame(self.body)
+        top.pack(fill="x", padx=10, pady=(6, 0))
+        self.path_label = ttk.Label(top, text=t("install_folder"))
         self.path_label.pack(side="left")
         self.path_var = tk.StringVar()
         self.path_entry = ttk.Entry(top, textvariable=self.path_var)
         self.path_entry.pack(side="left", fill="x", expand=True, padx=6)
-        self.browse_button = ttk.Button(top, text="Parcourir…", command=self._browse)
+        self.browse_button = ttk.Button(top, text=t("browse"), command=self._browse)
         self.browse_button.pack(side="left")
-        self.scope_button = ttk.Button(top, text="Périmètre et analyse…", command=self.open_scope_window)
+        self.scope_button = ttk.Button(top, text=t("scope_button"), command=self.open_scope_window)
         self.scope_button.pack(side="left", padx=(6, 0))
 
-        self.validation = tk.Label(self, text="", fg="#b00020", anchor="w")
+        self.validation = tk.Label(self.body, text="", fg=palette()["warn"], anchor="w")
         self.validation.pack(fill="x", padx=10)
 
-        status = ttk.Frame(self)
+        status = ttk.Frame(self.body)
         status.pack(fill="x", padx=10, pady=4)
         self.progress = ttk.Progressbar(status, mode="indeterminate", length=200)
         self.progress.pack(side="left")
         self.step_label = ttk.Label(status, text="")
         self.step_label.pack(side="left", padx=8)
 
-        summary = ttk.Frame(self)
+        summary = ttk.Frame(self.body)
         summary.pack(fill="x", padx=10, pady=(0, 6))
-        self.summary_label = ttk.Label(summary, text="Choisissez le dossier d'installation de votre ComfyUI puis cliquez sur « Périmètre et analyse… ».",
-                                       justify="left")
+        self.summary_label = ttk.Label(summary, text=t("summary_start"), justify="left")
         self.summary_label.pack(side="left")
-        self.details_button = ttk.Button(summary, text="Détails…", command=self._details, state="disabled")
+        self.details_button = ttk.Button(summary, text=t("details"), command=self._details, state="disabled")
         self.details_button.pack(side="right")
 
-        self.notebook = ttk.Notebook(self)
+        self.notebook = ttk.Notebook(self.body)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         self.used_tab = UsedTab(self.notebook)
         self.unused_tab = UnusedTab(self.notebook, self._delete, self.extra_workflow_dirs)
         self.duplicates_tab = DuplicatesTab(self.notebook, self._delete, self.run_background, self.set_busy)
         self.junk_tab = JunkTab(self.notebook, self._delete, self._save_patterns)
         self.tabs = [self.used_tab, self.unused_tab, self.duplicates_tab, self.junk_tab]
-        for tab, title in zip(self.tabs, ["Utilisés", "Non utilisés", "Doublons", "Fichiers parasites"]):
-            self.notebook.add(tab, text=title)
+        for tab, key in zip(self.tabs, ["tab_used", "tab_unused", "tab_duplicates", "tab_junk"]):
+            self.notebook.add(tab, text=t(key))
 
         self.path_var.trace_add("write", lambda *_: self._on_path_change())
+
+    # ----- langue et thème ----------------------------------------------
+
+    def _on_language_selected(self) -> None:
+        code = next(c for c, name in LANGUAGES.items() if name == self.language_var.get())
+        self.set_language(code)
+
+    def _on_theme_selected(self) -> None:
+        labels = {t(f"theme_{key}"): key for key in THEME_KEYS}
+        self.set_theme(labels.get(self.theme_var.get(), "light"))
+
+    def set_language(self, code: str) -> None:
+        if self.busy:
+            return
+        i18n.set_language(code)
+        self.settings["language"] = i18n.get_language()
+        save_settings(self.settings)
+        self.rebuild()
+
+    def set_theme(self, theme: str) -> None:
+        if self.busy:
+            return
+        self.settings["theme"] = theme if theme in THEME_KEYS else "light"
+        save_settings(self.settings)
+        self.rebuild()
+
+    def rebuild(self) -> None:
+        """Reconstruit l'interface (langue ou thème) en réaffichant les résultats ; les coches sont remises à zéro."""
+        path = self.path_var.get()
+        tab_index = self.notebook.index("current") if self.notebook.tabs() else 0
+        duplicate_groups = self.duplicates_tab.groups
+        junk = list(self.junk_tab.junk)
+        reopen_scope = self.scope_window is not None
+        if reopen_scope:
+            self.scope_window.close()
+        self.body.destroy()
+
+        apply_style(self, self._theme())
+        self._build()
+        self.path_var.set(path)
+        self.junk_tab.set_patterns(self.settings.get("junk_patterns", []))
+        if self.result is not None:
+            for tab in self.tabs:
+                tab.show(self.result)
+            self.junk_tab.show(self.result, junk)
+            if duplicate_groups is not None:
+                self.duplicates_tab.show(self.result, duplicate_groups)
+            self._show_summary(self.result)
+        self.notebook.select(tab_index)
+        if reopen_scope:
+            self.open_scope_window()
 
     # ----- état ---------------------------------------------------------
 
     def _validate(self) -> bool:
         path = self.path_var.get().strip()
-        message = "Choisissez le dossier d'installation de ComfyUI." if not path else validate_comfyui(Path(path))
-        self.validation.configure(text=message or "")
-        self.scope_button.configure(state="disabled" if message or self.busy else "normal")
+        message = t("path_missing") if not path else validate_comfyui(Path(path))
+        self.validation.configure(text=localized(message) if message else "")
+        state = "disabled" if self.busy else "normal"
+        self.scope_button.configure(state=state)
+        self.language_box.configure(state="disabled" if self.busy else "readonly")
+        self.theme_box.configure(state="disabled" if self.busy else "readonly")
         return message is None
 
     def set_busy(self, busy: bool) -> None:
@@ -102,8 +194,8 @@ class CleanModelsApp(tk.Tk):
         state = "disabled" if busy else "normal"
         self.browse_button.configure(state=state)
         self.path_entry.configure(state=state)
-        if self.scope_window is not None and busy:
-            self.scope_window.close()
+        if self.scope_window is not None:
+            self.scope_window.set_busy(busy)
         for tab in self.tabs:
             tab.set_enabled(not busy)
         self._validate()
@@ -117,10 +209,8 @@ class CleanModelsApp(tk.Tk):
         return [str(p) for p in self.settings.get("extra_workflow_dirs", [])]
 
     def _on_path_change(self) -> None:
-        if not self._validate() and self.scope_window is not None:
-            self.scope_window.close()
-        elif self.scope_window is not None:
-            self.scope_window.refresh()
+        self._validate()
+        self._refresh_scope_window()
 
     def _refresh_scope_window(self) -> None:
         if self.scope_window is not None:
@@ -143,17 +233,20 @@ class CleanModelsApp(tk.Tk):
         self._refresh_scope_window()
 
     def open_scope_window(self):
-        """Ouvre (ou ramène au premier plan) la fenêtre du périmètre, tous dossiers cochés."""
-        if self.busy or not self._validate():
-            return None
+        """Ouvre (ou ramène au premier plan) la fenêtre du périmètre, à droite de la fenêtre principale."""
         if self.scope_window is None:
-            self.scope_window = ScopeWindow(self)
+            self.scope_window = ScopeWindow(self, self._scope_geometry)
+            self.scope_window.set_busy(self.busy)
         else:
             self.scope_window.lift()
         return self.scope_window
 
     def scope_window_closed(self, window) -> None:
         if self.scope_window is window:
+            try:
+                self._scope_geometry = window.geometry()
+            except tk.TclError:
+                pass
             self.scope_window = None
 
     def run_background(self, work: Callable, on_progress: Callable, on_done: Callable,
@@ -199,12 +292,12 @@ class CleanModelsApp(tk.Tk):
                 handle.write(f"{datetime.now().isoformat(timespec='seconds')}\tERREUR INTERNE\n{trace}\n")
         except OSError:
             pass
-        messagebox.showerror("Erreur", f"Une erreur inattendue s'est produite :\n{exc}", parent=self)
+        messagebox.showerror(t("error_title"), t("error_unexpected", error=exc), parent=self)
 
     # ----- actions ------------------------------------------------------
 
     def _browse(self) -> None:
-        folder = filedialog.askdirectory(parent=self, title="Dossier d'installation de ComfyUI",
+        folder = filedialog.askdirectory(parent=self, title=t("browse_title"),
                                          initialdir=self.path_var.get() or None)
         if folder:
             self.path_var.set(str(Path(folder)))
@@ -230,7 +323,7 @@ class CleanModelsApp(tk.Tk):
 
         def on_done(result):
             self.progress.stop()
-            self.step_label.configure(text="Analyse terminée.")
+            self.step_label.configure(text=t("analysis_done"))
             self.result = result
             for tab in self.tabs:
                 tab.show(result)
@@ -240,7 +333,7 @@ class CleanModelsApp(tk.Tk):
         self.run_background(
             lambda report: run_analysis(comfy, patterns, progress=report, extra_workflow_dirs=extra_dirs,
                                         excluded_dirs=excluded),
-            lambda label: self.step_label.configure(text=label),
+            lambda label: self.step_label.configure(text=localized(label)),
             on_done,
         )
 
@@ -248,16 +341,16 @@ class CleanModelsApp(tk.Tk):
         wf, roots, usage = result.workflows, result.roots, result.usage
         unused_bytes = sum(f.size for f in usage.unused)
         lines = [
-            f"Workflows lus : {wf.workflow_count}   ignorés : {len(wf.skipped)}   —   "
-            f"Dossiers analysés : {len(roots.dirs)}   introuvables : {len(roots.missing)}",
-            f"Modèles : {len(result.inventory.files)} ({format_size(result.total_bytes)})   —   "
-            f"utilisés : {len(usage.used)}   non utilisés : {len(usage.unused)} ({format_size(unused_bytes)})",
+            t("summary_line1", read=wf.workflow_count, skipped=len(wf.skipped), dirs=len(roots.dirs),
+              missing=len(roots.missing)),
+            t("summary_line2", count=len(result.inventory.files), size=format_size(result.total_bytes),
+              used=len(usage.used), unused=len(usage.unused), unused_size=format_size(unused_bytes)),
         ]
         excluded = len(result.excluded_model_dirs) + len(result.excluded_workflow_sources)
         if excluded:
-            lines.append(f"Dossiers décochés (non analysés) : {excluded} — voir « Détails… ».")
+            lines.append(t("summary_excluded", count=excluded))
         if roots.warnings or result.inventory.errors:
-            lines.append("⚠ Des avertissements sont disponibles dans « Détails… ».")
+            lines.append(t("summary_warnings"))
         self.summary_label.configure(text="\n".join(lines))
         self.details_button.configure(state="normal")
 
@@ -265,29 +358,30 @@ class CleanModelsApp(tk.Tk):
         if self.result is None:
             return
         r = self.result
-        lines = ["Workflows de référence :"]
+
+        def describe(d) -> str:
+            return f"  [{d.category}] {d.path}  ({localized(origin_label(d.origin))})"
+
+        lines = [t("details_workflows")]
         lines += [
-            f"  {src.path}  ({src.origin}"
-            f"{'' if src.exists else ' — introuvable'}"
-            f"{' — décoché' if src in r.excluded_workflow_sources else ''})"
+            f"  {src.path}  ({localized(origin_label(src.origin))}"
+            f"{'' if src.exists else t('suffix_missing')}"
+            f"{t('suffix_unchecked') if src in r.excluded_workflow_sources else ''})"
             for src in r.workflow_sources
         ]
-        lines += ["", "Dossiers analysés :"]
-        lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.roots.dirs]
+        lines += ["", t("details_dirs")] + [describe(d) for d in r.roots.dirs]
         if r.excluded_model_dirs:
-            lines += ["", "Dossiers de modèles décochés (non analysés) :"]
-            lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.excluded_model_dirs]
+            lines += ["", t("details_excluded")] + [describe(d) for d in r.excluded_model_dirs]
         if r.roots.missing:
-            lines += ["", "Dossiers déclarés introuvables :"]
-            lines += [f"  [{d.category}] {d.path}  ({d.origin})" for d in r.roots.missing]
+            lines += ["", t("details_missing")] + [describe(d) for d in r.roots.missing]
         if r.workflows.skipped:
-            lines += ["", "Workflows ignorés :"]
-            lines += [f"  {path} — {reason}" for path, reason in r.workflows.skipped]
+            lines += ["", t("details_skipped")]
+            lines += [f"  {path} — {localized(reason)}" for path, reason in r.workflows.skipped]
         if r.roots.warnings:
-            lines += ["", "Avertissements :"] + [f"  {w}" for w in r.roots.warnings]
+            lines += ["", t("details_warnings")] + [f"  {localized(w)}" for w in r.roots.warnings]
         if r.inventory.errors:
-            lines += ["", "Fichiers inaccessibles :"] + [f"  {e}" for e in r.inventory.errors]
-        show_details(self, "Détails de l'analyse", lines)
+            lines += ["", t("details_errors")] + [f"  {e}" for e in r.inventory.errors]
+        show_details(self, t("details_title"), lines)
 
     def _delete(self, items: list, checker_factory: Callable, notes: list) -> None:
         if self.busy or not items:
@@ -298,7 +392,7 @@ class CleanModelsApp(tk.Tk):
         keys = {item: file_key(item.path) for item in items}
         log_path = settings_dir() / LOG_FILE
         self.set_busy(True)
-        self.step_label.configure(text="Suppression en cours…")
+        self.step_label.configure(text=t("deleting"))
 
         def on_done(result):
             self.set_busy(False)

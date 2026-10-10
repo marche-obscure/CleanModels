@@ -4,12 +4,9 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
+from ..i18n import localized, t, tn
 from .format import format_size
-
-WARNING_TEXT = "Cette suppression est définitive et ne peut pas être annulée."
-CANCEL_TEXT = "Annuler"
-CONFIRM_TEXT = "Supprimer définitivement"
-DANGER = "#b00020"
+from .style import palette
 
 
 def _modal(parent, title: str) -> tk.Toplevel:
@@ -30,7 +27,7 @@ def _scrolled_text(window, lines: list, row: int) -> None:
     yscroll = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
     xscroll = ttk.Scrollbar(frame, orient="horizontal", command=text.xview)
     text.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
-    text.insert("1.0", "\n".join(lines))
+    text.insert("1.0", "\n".join(localized(line) for line in lines))
     text.configure(state="disabled")
     text.grid(row=0, column=0, sticky="nsew")
     yscroll.grid(row=0, column=1, sticky="ns")
@@ -40,21 +37,21 @@ def _scrolled_text(window, lines: list, row: int) -> None:
 
 def confirm_deletion(parent, paths: list, total_bytes: int, notes: list) -> bool:
     """Demande une confirmation explicite ; « Annuler » est le choix par défaut."""
-    window = _modal(parent, "Confirmer la suppression")
+    window = _modal(parent, t("confirm_title"))
     answer = {"value": False}
+    danger = palette()["warn"]
 
-    count = len(paths)
     ttk.Label(
         window,
-        text=f"{count} fichier{'s' if count > 1 else ''} – {format_size(total_bytes)}",
+        text=tn("files_count", len(paths), size=format_size(total_bytes)),
         font=("TkDefaultFont", 13, "bold"),
     ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 2))
-    tk.Label(window, text=WARNING_TEXT, fg=DANGER, font=("TkDefaultFont", 12, "bold")).grid(
+    tk.Label(window, text=t("delete_warning"), fg=danger, font=("TkDefaultFont", 12, "bold")).grid(
         row=1, column=0, sticky="w", padx=12
     )
     row = 2
     for note in notes:
-        tk.Label(window, text=note, fg=DANGER, justify="left", wraplength=640).grid(
+        tk.Label(window, text=localized(note), fg=danger, justify="left", wraplength=640).grid(
             row=row, column=0, sticky="w", padx=12
         )
         row += 1
@@ -66,8 +63,8 @@ def confirm_deletion(parent, paths: list, total_bytes: int, notes: list) -> bool
 
     buttons = ttk.Frame(window)
     buttons.grid(row=row + 1, column=0, sticky="e", padx=12, pady=12)
-    cancel = ttk.Button(buttons, text=CANCEL_TEXT, command=lambda: close(False), default="active")
-    confirm = ttk.Button(buttons, text=CONFIRM_TEXT, command=lambda: close(True))
+    cancel = ttk.Button(buttons, text=t("cancel"), command=lambda: close(False), default="active")
+    confirm = ttk.Button(buttons, text=t("confirm_delete"), command=lambda: close(True), style="Danger.TButton")
     confirm.grid(row=0, column=0, padx=(0, 8))
     cancel.grid(row=0, column=1)
     window.bind("<Escape>", lambda _e: close(False))
@@ -82,21 +79,22 @@ def confirm_deletion(parent, paths: list, total_bytes: int, notes: list) -> bool
 def show_details(parent, title: str, lines: list) -> None:
     window = _modal(parent, title)
     _scrolled_text(window, lines, 0)
-    ttk.Button(window, text="Fermer", command=window.destroy).grid(row=1, column=0, sticky="e", padx=12, pady=12)
+    ttk.Button(window, text=t("close"), command=window.destroy).grid(row=1, column=0, sticky="e", padx=12, pady=12)
     window.bind("<Escape>", lambda _e: window.destroy())
 
 
 def show_report(parent, result) -> None:
     lines = [
-        f"Supprimés : {len(result.deleted)}",
-        f"Refusés : {len(result.refused)}",
-        f"Erreurs : {len(result.errors)}",
-        f"Espace libéré : {format_size(result.freed_bytes)}",
+        t("report_deleted", count=len(result.deleted)),
+        t("report_refused", count=len(result.refused)),
+        t("report_errors", count=len(result.errors)),
+        t("report_freed", size=format_size(result.freed_bytes)),
     ]
     if result.refused:
-        lines += ["", "Refusés :"] + [f"  {item.path} — {reason}" for item, reason in result.refused]
+        lines += ["", t("report_refused_list")]
+        lines += [f"  {item.path} — {localized(reason)}" for item, reason in result.refused]
     if result.errors:
-        lines += ["", "Erreurs :"] + [f"  {item.path} — {message}" for item, message in result.errors]
+        lines += ["", t("report_errors_list")] + [f"  {item.path} — {message}" for item, message in result.errors]
     if result.log_errors:
-        lines += ["", "Journal non écrit :"] + [f"  {message}" for message in result.log_errors]
-    show_details(parent, "Bilan de la suppression", lines)
+        lines += ["", t("report_log_errors")] + [f"  {localized(message)}" for message in result.log_errors]
+    show_details(parent, t("report_title"), lines)

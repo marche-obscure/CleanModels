@@ -256,6 +256,19 @@ Un fichier sans aucun appel est **non utilisé**.
 - Les cases à cocher sont simulées dans un `ttk.Treeview` (symbole ☐/☑ dans la première colonne,
   basculé au clic ou à la barre d'espace).
 
+### Disposition, thème et langue
+
+- Au lancement : fenêtre principale à gauche (60 % de la largeur de l'écran), fenêtre
+  « Périmètre du contrôle » ouverte en même temps, collée à sa droite. Elle reste ouverte
+  pendant et après l'analyse ; le bouton « Périmètre et analyse… » la rouvre si elle est fermée.
+- Bouton **Analyser** en vert (texte blanc gras) ; boutons **Supprimer** gris quand inactifs,
+  rouges (texte blanc) quand actifs. Thème ttk « clam » (nécessaire aux couleurs sous Windows).
+- **Thème** Clair / Sombre et **Langue** Français / English / Deutsch, choisis uniquement dans
+  l'interface (aucune question au démarrage), mémorisés. Défauts : Clair, Français.
+- Changer de thème ou de langue reconstruit l'interface : résultats d'analyse, doublons et
+  fichiers parasites réaffichés, cases à cocher remises à zéro.
+- Le journal `cleanmodels.log` reste en français quelle que soit la langue.
+
 ## 7. Réglages
 
 Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.cleanmodels/`) :
@@ -265,7 +278,9 @@ Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.clea
   "config_version": 2,
   "comfyui_path": "D:/ComfyUI",
   "junk_patterns": ["*.part", "*.crdownload", "*.tmp", "*.download"],
-  "extra_workflow_dirs": ["E:/MesWorkflows"]
+  "extra_workflow_dirs": ["E:/MesWorkflows"],
+  "language": "fr",
+  "theme": "light"
 }
 ```
 

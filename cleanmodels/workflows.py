@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .constants import MODEL_EXTENSIONS
+from .i18n import Message
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ def _node_payloads(data: object) -> list:
         return [(str(n.get("id", "")), str(n.get("type", "")), n.get("widgets_values")) for n in _ui_nodes(data)]
     if isinstance(data, dict) and _is_api_format(data):
         return [(str(k), str(n.get("class_type", "")), n.get("inputs")) for k, n in data.items()]
-    raise ValueError("structure de workflow inconnue")
+    raise ValueError(Message("err_unknown_structure"))
 
 
 def _references(data: object, workflow: Path, keep) -> list:
@@ -118,7 +119,8 @@ def scan_workflow_dirs(folders: list) -> WorkflowScan:
             refs = references_from_json(data, path)
             names = name_references_from_json(data, path)
         except (OSError, UnicodeDecodeError, ValueError) as exc:
-            scan.skipped.append((path, str(exc)))
+            reason = exc.args[0] if exc.args and isinstance(exc.args[0], Message) else str(exc)
+            scan.skipped.append((path, reason))
             continue
         scan.workflow_count += 1
         scan.references.extend(refs)

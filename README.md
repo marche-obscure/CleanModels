@@ -19,6 +19,12 @@ origine et la cible réelle des liens. Tout est coché par défaut ; décochez l
 analyser, puis cliquez sur « Analyser ». Un dossier de workflows décoché est tout de même relu
 avant chaque suppression : un modèle qu'il utilise ne peut pas être supprimé.
 
+Au lancement, la fenêtre principale s'ouvre à gauche de l'écran et la fenêtre « Périmètre du
+contrôle » à sa droite ; elle reste ouverte après l'analyse.
+
+En haut à droite de la fenêtre principale : **Thème** (Clair / Sombre) et **Langue**
+(Français / English / Deutsch). Les choix sont mémorisés ; le journal reste en français.
+
 ## ⚠ Suppression définitive
 
 Les fichiers supprimés ne passent **pas** par la Corbeille. Chaque suppression demande une

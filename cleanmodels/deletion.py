@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from .i18n import Message
 from .inventory import file_key
 from .junk import match_pattern
 from .matching import FileIndex
@@ -54,8 +55,8 @@ def unused_checker(workflow_folders: list, files: list, aliases: list = ()) -> C
 
     def check(item: DeletionItem) -> str | None:
         if unreadable:
-            return f"{unreadable} workflow(s) illisible(s) : corrigez-les ou retirez-les du dossier des workflows"
-        return "cité par un workflow" if file_key(item.path) in referenced else None
+            return Message("reason_unreadable", count=unreadable)
+        return Message("reason_referenced") if file_key(item.path) in referenced else None
 
     return check
 
@@ -72,19 +73,19 @@ def duplicates_checker(groups: list, selected: set) -> Checker:
         key = file_key(item.path)
         group = group_of.get(key)
         if group is None:
-            return "groupe de doublons introuvable"
+            return Message("reason_no_group")
         kept = [
             f for f in group.files
             if file_key(f.path) != key and file_key(f.path) not in selected and os.path.isfile(f.path)
         ]
-        return None if kept else "aucune autre copie conservée"
+        return None if kept else Message("reason_no_copy")
 
     return check
 
 
 def junk_checker(patterns: list) -> Checker:
     def check(item: DeletionItem) -> str | None:
-        return None if match_pattern(item.path.name, patterns) else "ne correspond plus à un motif"
+        return None if match_pattern(item.path.name, patterns) else Message("reason_pattern")
 
     return check
 
@@ -97,16 +98,16 @@ def _log(log_path: Path, item: DeletionItem, status: str, result: "DeletionResul
         with open(log_path, "a", encoding="utf-8") as handle:
             handle.write(line + "\n")
     except OSError as exc:
-        result.log_errors.append(f"{item.path} ({status}) : journal non écrit — {exc}")
+        result.log_errors.append(Message("log_not_written", path=item.path, status=status, error=exc))
 
 
 def _precheck(item: DeletionItem) -> str | None:
     if not os.path.lexists(item.path):
-        return "fichier introuvable"
+        return Message("reason_missing")
     if not os.path.isfile(item.path):
-        return "n'est plus un fichier"
+        return Message("reason_not_file")
     if os.path.getsize(item.path) != item.size:
-        return "taille modifiée"
+        return Message("reason_size")
     return None
 
 
@@ -116,7 +117,7 @@ def delete_files(items: list, checker: Checker, log_path: Path) -> DeletionResul
         try:
             reason = _precheck(item) or checker(item)
         except OSError as exc:
-            reason = f"vérification impossible ({exc})"
+            reason = Message("reason_check_failed", error=exc)
         if reason:
             result.refused.append((item, reason))
             _log(log_path, item, f"REFUSÉ: {reason}", result)

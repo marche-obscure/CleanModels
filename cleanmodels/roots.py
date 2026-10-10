@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .constants import CATEGORIES
+from .i18n import Message
 from .yaml_lite import YamlError, parse
 
 EXTRA_PATHS_FILE = "extra_model_paths.yaml"
@@ -34,11 +35,11 @@ def validate_comfyui(path: Path) -> str | None:
     """Message d'erreur en français, ou None si le dossier est une installation ComfyUI."""
     path = Path(path)
     if not path.is_dir():
-        return f"Le dossier « {path} » n'existe pas."
+        return Message("err_dir_missing", path=path)
     if not (path / "models").is_dir():
-        return f"Le dossier « {path} » ne contient pas de sous-dossier models/."
+        return Message("err_no_models", path=path)
     if not workflows_dir(path).is_dir():
-        return f"Le dossier « {path} » ne contient pas user/default/workflows/."
+        return Message("err_no_workflows", path=path)
     return None
 
 
@@ -101,9 +102,7 @@ def collect_model_dirs(comfy: Path) -> RootsResult:
             data = parse(yaml_file.read_text(encoding="utf-8-sig"))
             candidates.extend(_yaml_dirs(comfy, data))
         except (OSError, UnicodeDecodeError, YamlError) as exc:
-            result.warnings.append(
-                f"{EXTRA_PATHS_FILE} est illisible ({exc}) : seul le dossier models/ est analysé."
-            )
+            result.warnings.append(Message("warn_yaml_unreadable", file=EXTRA_PATHS_FILE, error=exc))
 
     seen = set()
     for model_dir in candidates:

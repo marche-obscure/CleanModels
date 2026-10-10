@@ -11,6 +11,7 @@ from tkinter import ttk
 from typing import Callable
 
 from .format import format_size
+from .style import palette
 
 GROUP_PREFIX = "group::"
 CHECKBOX_SIZE = 18
@@ -21,9 +22,10 @@ UNCHECKED, CHECKED, PARTIAL = "unchecked", "checked", "partial"
 def _checkbox_image(master, state: str, size: int = CHECKBOX_SIZE) -> tk.PhotoImage:
     """Case à cocher dessinée pixel par pixel (indépendante de la police)."""
     image = tk.PhotoImage(master=master, width=size, height=size)
-    border, fill, mark = "#5f6368", "#ffffff", "#ffffff"
+    colors = palette()
+    border, fill, mark = colors["muted"], colors["field"], "#ffffff"
     if state == CHECKED:
-        border = fill = "#1a73e8"
+        border = fill = colors["check"]
     image.put(fill, to=(0, 0, size, size))
     for x in range(size):  # bordure de 2 pixels
         for y in (0, 1, size - 2, size - 1):
@@ -36,7 +38,7 @@ def _checkbox_image(master, state: str, size: int = CHECKBOX_SIZE) -> tk.PhotoIm
             for dx, dy in ((0, 0), (0, 1), (1, 0)):
                 image.put(mark, (x + dx, y + dy))
     elif state == PARTIAL:
-        image.put("#1a73e8", to=(5, 5, size - 5, size - 5))
+        image.put(colors["check"], to=(5, 5, size - 5, size - 5))
     return image
 
 
@@ -52,7 +54,7 @@ class SortableTree(ttk.Frame):
             numeric = col_id.endswith("_n")
             self.tree.column(col_id, width=width, anchor="e" if numeric else "w", stretch=not numeric)
             self.tree.heading(col_id, text=title, command=lambda c=col_id: self.sort_by(c))
-        self.tree.tag_configure("group", font="TkHeadingFont")
+        self.tree.tag_configure("group", font="TkHeadingFont", foreground=palette()["fg"])
         yscroll = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         xscroll = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)

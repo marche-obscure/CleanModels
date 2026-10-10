@@ -115,25 +115,56 @@ class CheckTreeTest(unittest.TestCase):
 
 
 class StyleTest(unittest.TestCase):
+    def setUp(self):
+        try:
+            self.root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(f"pas d'affichage disponible : {exc}")
+        self.root.withdraw()
+
+    def tearDown(self):
+        from cleanmodels.gui.style import apply_style
+
+        apply_style(self.root, "light")
+        self.root.destroy()
+
     def test_fonts_are_12_points_and_rows_fit(self):
         import tkinter.font as tkfont
         from tkinter import ttk
 
         from cleanmodels.gui.style import apply_style
 
-        try:
-            root = tk.Tk()
-        except tk.TclError as exc:
-            self.skipTest(f"pas d'affichage disponible : {exc}")
-        try:
-            root.withdraw()
-            apply_style(root)
-            for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont", "TkFixedFont"):
-                self.assertEqual(tkfont.nametofont(name, root=root).cget("size"), 12)
-            linespace = tkfont.nametofont("TkDefaultFont", root=root).metrics("linespace")
-            self.assertGreater(int(ttk.Style(root).lookup("Treeview", "rowheight")), linespace)
-        finally:
-            root.destroy()
+        apply_style(self.root, "light")
+        for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont", "TkFixedFont"):
+            self.assertEqual(tkfont.nametofont(name, root=self.root).cget("size"), 12)
+        linespace = tkfont.nametofont("TkDefaultFont", root=self.root).metrics("linespace")
+        self.assertGreater(int(ttk.Style(self.root).lookup("Treeview", "rowheight")), linespace)
+
+    def test_dark_and_light_palettes(self):
+        from tkinter import ttk
+
+        from cleanmodels.gui.style import DARK, LIGHT, apply_style, palette
+
+        style = ttk.Style(self.root)
+        apply_style(self.root, "dark")
+        self.assertEqual(palette(), DARK)
+        self.assertEqual(style.lookup("Treeview", "fieldbackground"), DARK["field"])
+        self.assertEqual(str(self.root.cget("background")), DARK["bg"])
+        apply_style(self.root, "light")
+        self.assertEqual(palette(), LIGHT)
+        self.assertEqual(style.lookup("Treeview", "fieldbackground"), LIGHT["field"])
+
+    def test_accent_and_danger_buttons(self):
+        from tkinter import ttk
+
+        from cleanmodels.gui.style import LIGHT, apply_style
+
+        apply_style(self.root, "light")
+        style = ttk.Style(self.root)
+        self.assertEqual(style.lookup("Accent.TButton", "background"), LIGHT["accent"])
+        self.assertEqual(style.lookup("Danger.TButton", "background", ["!disabled"]), LIGHT["danger"])
+        self.assertEqual(style.lookup("Danger.TButton", "background", ["disabled"]), LIGHT["disabled_bg"])
+        self.assertEqual(style.lookup("Danger.TButton", "foreground", ["!disabled"]), "#ffffff")
 
 
 class ConfirmDeletionTest(unittest.TestCase):

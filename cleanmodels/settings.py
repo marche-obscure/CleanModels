@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from .constants import CONFIG_VERSION, DEFAULT_JUNK_PATTERNS
+from .i18n import DEFAULT_LANGUAGE, Message
 
 SETTINGS_FILE = "settings.json"
 
@@ -27,6 +28,8 @@ def _defaults() -> dict:
         "comfyui_path": "",
         "junk_patterns": list(DEFAULT_JUNK_PATTERNS),
         "extra_workflow_dirs": [],
+        "language": DEFAULT_LANGUAGE,
+        "theme": "light",
     }
 
 
@@ -46,10 +49,7 @@ def load_settings() -> tuple[dict, str | None]:
             os.replace(path, backup)
         except OSError:
             pass
-        return data, (
-            f"Le fichier de réglages était illisible ({exc}). "
-            f"Il a été renommé en {backup.name} et les réglages par défaut sont utilisés."
-        )
+        return data, Message("warn_settings_corrupt", error=exc, backup=backup.name)
     data.update(stored)
     # Mise à niveau : une version antérieure est portée à la version courante,
     # une version plus récente est conservée telle quelle.

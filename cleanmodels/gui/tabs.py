@@ -9,8 +9,10 @@ from typing import Callable
 from ..constants import DEFAULT_JUNK_PATTERNS
 from ..deletion import DeletionItem, duplicates_checker, fully_selected_groups, junk_checker, unused_checker
 from ..duplicates import Cancelled, find_duplicates
+from ..i18n import localized, t, tn
 from ..inventory import file_key
 from ..junk import find_junk
+from ..scope import origin_label
 from .checktree import CheckTree, SortableTree
 from .dialogs import show_details
 from .format import format_size
@@ -27,7 +29,7 @@ def _describe_workflow(path, sources: list) -> str:
         except ValueError:
             continue
         if not rel.startswith(".."):
-            return f"{rel}  [{source.origin} : {source.path}]"
+            return f"{rel}  [{localized(origin_label(source.origin))} : {source.path}]"
     return str(path)
 
 
@@ -39,15 +41,13 @@ def _category_order(rows: list) -> list:
 class UsedTab(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.table = SortableTree(self, "Catégorie / Nom", [
-            ("root", "Dossier racine", 380),
-            ("size_n", "Taille", 90),
-            ("calls_n", "Appels", 70),
-            ("workflows_n", "Workflows", 80),
+        self.table = SortableTree(self, t("col_category_name"), [
+            ("root", t("col_root"), 380),
+            ("size_n", t("col_size"), 90),
+            ("calls_n", t("col_calls"), 70),
+            ("workflows_n", t("col_workflows"), 80),
         ])
-        ttk.Label(self, text="Double-cliquez sur un modèle pour voir les workflows qui l'utilisent.").pack(
-            anchor="w", padx=6, pady=4
-        )
+        ttk.Label(self, text=t("used_hint")).pack(anchor="w", padx=6, pady=4)
         self.table.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self.table.bind_double_click(self._details)
         self._usages: dict = {}
@@ -75,12 +75,13 @@ class UsedTab(ttk.Frame):
             return
         lines = [str(usage.file.path), ""]
         for ref in usage.references:
-            lines.append(f"{_describe_workflow(ref.workflow, self._sources)} — nœud {ref.node_id} ({ref.node_type})")
-        show_details(self, f"Utilisation de {usage.file.path.name}", lines)
+            lines.append(t("workflow_node", workflow=_describe_workflow(ref.workflow, self._sources),
+                           node=ref.node_id, type=ref.node_type))
+        show_details(self, t("usage_title", name=usage.file.path.name), lines)
 
 
 class _DeletableTab(ttk.Frame):
-    """Onglet avec cases à cocher, compteur et bouton Supprimer."""
+    """Onglet avec cases à cocher, compteur et bouton Supprimer (rouge quand il est actif)."""
 
     def __init__(self, master, tree_title: str, columns: list, on_delete: DeleteCallback):
         super().__init__(master)
@@ -90,13 +91,14 @@ class _DeletableTab(ttk.Frame):
         self.top.pack(fill="x", padx=6, pady=4)
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=6, pady=(0, 4))
-        ttk.Button(bar, text="Tout sélectionner", command=lambda: self.table.check_all()).pack(side="left")
-        ttk.Button(bar, text="Tout désélectionner", command=lambda: self.table.uncheck_all()).pack(
+        ttk.Button(bar, text=t("select_all"), command=lambda: self.table.check_all()).pack(side="left")
+        ttk.Button(bar, text=t("unselect_all"), command=lambda: self.table.uncheck_all()).pack(
             side="left", padx=6
         )
         self.counter = ttk.Label(bar, text="")
         self.counter.pack(side="left", padx=12)
-        self.delete_button = ttk.Button(bar, text="Supprimer", command=self._delete, state="disabled")
+        self.delete_button = ttk.Button(bar, text=t("delete"), command=self._delete, state="disabled",
+                                        style="Danger.TButton")
         self.delete_button.pack(side="right")
         self.table = CheckTree(self, tree_title, columns, on_selection_change=self._refresh)
         self.table.pack(fill="both", expand=True, padx=6, pady=(0, 6))
@@ -104,10 +106,7 @@ class _DeletableTab(ttk.Frame):
 
     def _refresh(self) -> None:
         count = len(self.table.checked_keys())
-        self.counter.configure(
-            text=f"{count} fichier{'s' if count > 1 else ''} sélectionné{'s' if count > 1 else ''}"
-                 f" – {format_size(self.table.checked_size())}"
-        )
+        self.counter.configure(text=tn("selected_count", count, size=format_size(self.table.checked_size())))
         self.delete_button.configure(state="normal" if count and self.enabled else "disabled")
 
     def set_enabled(self, enabled: bool) -> None:
@@ -123,10 +122,10 @@ class _DeletableTab(ttk.Frame):
 
 class UnusedTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, workflow_folders: Callable[[], list]):
-        super().__init__(master, "Catégorie / Nom", [
-            ("root", "Dossier racine", 340),
-            ("size_n", "Taille", 90),
-            ("path", "Chemin complet", 420),
+        super().__init__(master, t("col_category_name"), [
+            ("root", t("col_root"), 340),
+            ("size_n", t("col_size"), 90),
+            ("path", t("col_full_path"), 420),
         ], on_delete)
         self._files: dict = {}
         self._result = None
@@ -144,57 +143,54 @@ class UnusedTab(_DeletableTab):
     def _delete(self) -> None:
         files = [self._files[k] for k in self.table.checked_keys()]
         items = [DeletionItem(f.path, f.size, "unused") for f in files]
-        # Dossiers de l'analyse + dossiers actuellement configurés : on contrôle large.
+        # Tous les dossiers de l'analyse (même décochés) + dossiers configurés : on contrôle large.
         folders = [src.path for src in self._result.workflow_sources] + list(self._workflow_folders())
         inventory = self._result.inventory
         files, aliases = list(inventory.files), list(inventory.aliases)
         notes = []
         if self._result.excluded_workflow_sources:
-            notes.append(
-                "Dossiers de workflows décochés lors de l'analyse — ils sont quand même relus maintenant, "
-                "et la suppression d'un modèle qu'ils utilisent sera refusée :\n"
-                + "\n".join(str(src.path) for src in self._result.excluded_workflow_sources)
-            )
+            notes.append(t("note_unchecked_workflows", folders="\n".join(
+                str(src.path) for src in self._result.excluded_workflow_sources)))
         if self._result.workflows.skipped:
-            notes.append(
-                f"{len(self._result.workflows.skipped)} workflow(s) illisible(s) : la suppression sera refusée "
-                "tant qu'ils ne sont pas corrigés ou retirés (voir « Détails… »)."
-            )
+            notes.append(t("note_unreadable", count=len(self._result.workflows.skipped)))
         self.on_delete(items, lambda: unused_checker(folders, files, aliases), notes)
 
 
 class DuplicatesTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, run_background: Callable, set_busy: Callable):
-        super().__init__(master, "Groupe / Nom", [
-            ("path", "Chemin", 520),
-            ("size_n", "Taille", 90),
-            ("referenced", "Référencé", 90),
+        super().__init__(master, t("col_group_name"), [
+            ("path", t("col_path"), 520),
+            ("size_n", t("col_size"), 90),
+            ("referenced", t("col_referenced"), 110),
         ], on_delete)
         self._run_background = run_background
         self._set_busy = set_busy
-        self.search_button = ttk.Button(self.top, text="Rechercher les doublons", command=self._search,
+        self.search_button = ttk.Button(self.top, text=t("search_duplicates"), command=self._search,
                                         state="disabled")
         self.search_button.pack(side="left")
-        self.cancel_button = ttk.Button(self.top, text="Annuler", command=self._cancel, state="disabled")
+        self.cancel_button = ttk.Button(self.top, text=t("cancel"), command=self._cancel, state="disabled")
         self.cancel_button.pack(side="left", padx=6)
         self.progress = ttk.Progressbar(self.top, mode="determinate", maximum=100, length=240)
         self.progress.pack(side="left", padx=6)
-        self.status = ttk.Label(self.top, text="La recherche lit le contenu des fichiers : elle peut être longue.")
+        self.status = ttk.Label(self.top, text=t("dup_hint"))
         self.status.pack(side="left", padx=6)
         self._result = None
-        self._groups: list = []
+        self.groups: list | None = None  # None : recherche pas encore faite
         self._entries: dict = {}
         self._used_keys: set = set()
         self._cancel_event = None
 
-    def show(self, result) -> None:
+    def show(self, result, groups: list | None = None) -> None:
+        """Affiche une nouvelle analyse ; `groups` réaffiche une recherche déjà faite."""
         self._result = result
         self._used_keys = {file_key(u.file.path) for u in result.usage.used}
-        self._groups, self._entries = [], {}
+        self.groups, self._entries = None, {}
         self.table.set_rows([])
         self.progress.configure(value=0)
-        self.status.configure(text="Cliquez sur « Rechercher les doublons ».")
+        self.status.configure(text=t("dup_click_search"))
         self.search_button.configure(state="normal" if self.enabled else "disabled")
+        if groups is not None:
+            self._show_groups(groups)
 
     def set_enabled(self, enabled: bool) -> None:
         super().set_enabled(enabled)
@@ -205,7 +201,7 @@ class DuplicatesTab(_DeletableTab):
         cancel, files = self._cancel_event, list(self._result.inventory.files)
         self._set_busy(True)
         self.cancel_button.configure(state="normal")
-        self.status.configure(text="Recherche en cours…")
+        self.status.configure(text=t("dup_searching"))
 
         def work(report):
             return find_duplicates(files, progress=lambda done, total: report((done, total)), cancel=cancel)
@@ -226,7 +222,7 @@ class DuplicatesTab(_DeletableTab):
         def on_error(exc, trace):
             finish()
             if isinstance(exc, Cancelled):
-                self.status.configure(text="Recherche annulée.")
+                self.status.configure(text=t("dup_cancelled"))
                 self.progress.configure(value=0)
                 return True
             return False
@@ -238,20 +234,18 @@ class DuplicatesTab(_DeletableTab):
             self._cancel_event.set()
 
     def _show_groups(self, groups: list) -> None:
-        self._groups, self._entries, rows = groups, {}, []
+        self.groups, self._entries, rows = groups, {}, []
         for number, group in enumerate(groups, start=1):
             for f in group.files:
                 key = file_key(f.path)
                 self._entries[key] = (group, f)
-                referenced = "oui" if key in self._used_keys else ""
-                label = f"Groupe {number} — {group.files[0].path.name}"
+                referenced = t("yes") if key in self._used_keys else ""
+                label = t("dup_group", number=number, name=group.files[0].path.name)
                 rows.append((key, label, f.path.name, (str(f.path), format_size(f.size), referenced), f.size))
         self.table.set_rows(rows)
         self.progress.configure(value=100)
         wasted = sum(g.size * (len(g.files) - 1) for g in groups)
-        self.status.configure(
-            text=f"{len(groups)} groupe{'s' if len(groups) > 1 else ''} – {format_size(wasted)} récupérables"
-        )
+        self.status.configure(text=tn("dup_result", len(groups), size=format_size(wasted)))
 
     def forget(self, keys: list) -> None:
         super().forget(keys)
@@ -260,43 +254,34 @@ class DuplicatesTab(_DeletableTab):
 
     def _delete(self) -> None:
         selected = set(self.table.checked_keys())
-        if fully_selected_groups(self._groups, selected):
-            messagebox.showwarning(
-                "Doublons",
-                "Toutes les copies d'au moins un groupe sont cochées.\n"
-                "Gardez au moins une copie de chaque groupe.",
-                parent=self,
-            )
+        groups = self.groups or []
+        if fully_selected_groups(groups, selected):
+            messagebox.showwarning(t("tab_duplicates"), t("dup_all_selected"), parent=self)
             return
         files = [self._entries[k][1] for k in self.table.checked_keys()]
         items = [DeletionItem(f.path, f.size, "duplicates") for f in files]
         referenced = [str(f.path) for f in files if file_key(f.path) in self._used_keys]
-        notes = []
-        if referenced:
-            notes.append(
-                "Attention : ces copies sont citées par un workflow, qui devra pointer vers une autre copie :\n"
-                + "\n".join(referenced)
-            )
-        groups = self._groups
+        notes = [t("note_referenced_copies", paths="\n".join(referenced))] if referenced else []
         self.on_delete(items, lambda: duplicates_checker(groups, selected), notes)
 
 
 class JunkTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, on_patterns_change: Callable[[list], None]):
-        super().__init__(master, "Catégorie / Nom", [
-            ("root", "Dossier racine", 340),
-            ("size_n", "Taille", 90),
-            ("pattern", "Motif", 110),
-            ("path", "Chemin complet", 420),
+        super().__init__(master, t("col_category_name"), [
+            ("root", t("col_root"), 340),
+            ("size_n", t("col_size"), 90),
+            ("pattern", t("col_pattern"), 110),
+            ("path", t("col_full_path"), 420),
         ], on_delete)
         self._on_patterns_change = on_patterns_change
-        ttk.Label(self.top, text="Motifs (séparés par « ; ») :").pack(side="left")
+        ttk.Label(self.top, text=t("junk_patterns")).pack(side="left")
         self.patterns_var = tk.StringVar()
         ttk.Entry(self.top, textvariable=self.patterns_var, width=50).pack(side="left", padx=6)
-        ttk.Button(self.top, text="Appliquer", command=self._apply).pack(side="left")
-        ttk.Button(self.top, text="Rétablir les motifs par défaut", command=self._reset).pack(side="left", padx=6)
+        ttk.Button(self.top, text=t("apply"), command=self._apply).pack(side="left")
+        ttk.Button(self.top, text=t("reset_patterns"), command=self._reset).pack(side="left", padx=6)
         self._result = None
         self._files: dict = {}
+        self.junk: list = []
         self.patterns: list = list(DEFAULT_JUNK_PATTERNS)
 
     def set_patterns(self, patterns: list) -> None:
@@ -306,6 +291,7 @@ class JunkTab(_DeletableTab):
     def show(self, result, junk: list | None = None) -> None:
         self._result = result
         junk = result.junk if junk is None else junk
+        self.junk = list(junk)
         self._files = {file_key(j.path): j for j in junk}
         self.table.set_rows(_category_order([
             (key, j.category, j.path.name, (str(j.root), format_size(j.size), j.pattern, str(j.path)), j.size)

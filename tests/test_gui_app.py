@@ -31,7 +31,15 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         })
 
     def tearDown(self):
-        self.app.destroy()
+        from cleanmodels import i18n
+        from cleanmodels.gui.style import apply_style
+
+        try:
+            apply_style(self.app, "light")
+            self.app.destroy()
+        except tk.TclError:
+            pass
+        i18n.set_language("fr")
         super().tearDown()
 
     def _wait_idle(self, timeout=10.0):
@@ -47,11 +55,71 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         self.app._analyze()
         self._wait_idle()
 
-    def test_invalid_path_disables_scope_button(self):
+    def test_invalid_path_keeps_scope_window_usable(self):
         self.app.path_var.set(str(self.tmp / "absent"))
-        self.assertEqual(str(self.app.scope_button["state"]), "disabled")
         self.assertEqual(self.app.scope_button["text"], "Périmètre et analyse…")
+        self.assertEqual(str(self.app.scope_button["state"]), "normal")
         self.assertTrue(self.app.validation["text"])
+        window = self.app.scope_window
+        self.assertIsNotNone(window)
+        self.assertEqual(str(window.analyze_button["state"]), "disabled")
+        self.assertIn("Indiquez le dossier", window.warning["text"])
+
+    def test_scope_window_opens_at_startup_on_the_right(self):
+        from cleanmodels.gui.app import window_layout
+
+        self.assertIsNotNone(self.app.scope_window)
+        main, scope = window_layout(1920, 1080)
+        main_w, rest = main.split("x")
+        main_x = int(rest.split("+")[1])
+        scope_w, scope_rest = scope.split("x")
+        scope_x = int(scope_rest.split("+")[1])
+        self.assertEqual(main_x, 0)
+        self.assertGreaterEqual(scope_x, int(main_w))
+        self.assertLessEqual(scope_x + int(scope_w), 1920)
+        self.assertGreater(int(scope_w), 500)
+
+    def test_button_styles(self):
+        self.assertEqual(str(self.app.scope_window.analyze_button["style"]), "Accent.TButton")
+        for tab in (self.app.unused_tab, self.app.duplicates_tab, self.app.junk_tab):
+            self.assertEqual(str(tab.delete_button["style"]), "Danger.TButton")
+
+    def test_switch_language_rebuilds_and_keeps_results(self):
+        self._analyze()
+        self.app.set_language("en")
+        self.assertEqual(self.app.path_label["text"], "Your ComfyUI installation folder:")
+        self.assertEqual(self.app.notebook.tab(1, "text"), "Unused")
+        self.assertEqual(len(self.app.unused_tab.table.keys()), 2)
+        self.assertEqual(self.app.unused_tab.table.checked_keys(), [])
+        self.assertEqual(self.app.scope_window.title(), "Check scope")
+        self.assertEqual(self.app.path_var.get(), str(self.comfy))
+        self.assertEqual(self._settings()["language"], "en")
+        self.app.set_language("de")
+        self.assertEqual(self.app.scope_window.analyze_button["text"], "Analysieren")
+
+    def test_switch_theme_rebuilds_and_keeps_results(self):
+        from tkinter import ttk
+
+        from cleanmodels.gui.style import DARK
+
+        self._analyze()
+        self.app.set_theme("dark")
+        self.assertEqual(ttk.Style(self.app).lookup("Treeview", "fieldbackground"), DARK["field"])
+        self.assertEqual(len(self.app.unused_tab.table.keys()), 2)
+        self.assertEqual(self._settings()["theme"], "dark")
+
+    def test_language_and_theme_restored_at_startup(self):
+        from cleanmodels.gui.app import CleanModelsApp
+        from cleanmodels.settings import load_settings, save_settings
+
+        data, _ = load_settings()
+        data["language"], data["theme"] = "de", "dark"
+        save_settings(data)
+        self.app.destroy()
+        self.app = CleanModelsApp()
+        self.app.withdraw()
+        self.assertEqual(self.app.path_label["text"], "Installationsordner Ihres ComfyUI:")
+        self.assertEqual(self.app.theme_var.get(), "Dunkel")
 
     def test_analysis_fills_tabs_and_saves_path(self):
         self._analyze()
@@ -194,7 +262,8 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         self._wait_idle()
         self.assertEqual(self.app.unused_tab.table.groups(), ["checkpoints"])
         self.assertEqual(self.app.junk_tab.table.keys(), [])
-        self.assertFalse(window.winfo_exists())
+        self.assertTrue(window.winfo_exists())
+        self.assertIs(self.app.scope_window, window)
 
     def test_unchecked_workflow_folder_still_protects_at_delete_time(self):
         extra = self.tmp / "ailleurs"
