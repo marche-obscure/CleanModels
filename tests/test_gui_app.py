@@ -90,6 +90,37 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         self.assertTrue((self.comfy / "models" / "vae" / "unused.pt").exists())
         self.assertEqual(len(tab.table.keys()), 2)
 
+    def test_tabs_grouped_by_category(self):
+        self._analyze()
+        self.assertEqual(self.app.used_tab.table.groups(), ["checkpoints"])
+        self.assertEqual(self.app.unused_tab.table.groups(), ["checkpoints", "vae"])
+        self.assertEqual(self.app.junk_tab.table.groups(), ["vae"])
+        used = self.app.used_tab.table
+        key = used.keys()[0]
+        self.assertEqual(used.tree.item(key, "text").strip(), "used.safetensors")
+        self.assertEqual(used.tree.set(key, "root"), str(self.comfy / "models" / "checkpoints"))
+        self.assertEqual(used.tree.set(key, "calls_n"), "1")
+        self.assertEqual(used.tree.set(key, "workflows_n"), "1")
+
+    def test_duplicates_grouped_by_group(self):
+        self._analyze()
+        tab = self.app.duplicates_tab
+        tab._search()
+        self._wait_idle()
+        self.assertEqual(len(tab.table.groups()), 1)
+        self.assertTrue(tab.table.groups()[0].startswith("Groupe 1"))
+
+    def test_category_checkbox_selects_whole_category(self):
+        self._analyze()
+        tab = self.app.unused_tab
+        tab.table.toggle_group("vae")
+        self.assertEqual(len(tab.table.checked_keys()), 1)
+        self.assertEqual(str(tab.delete_button["state"]), "normal")
+
+    def test_font_is_12_points(self):
+        import tkinter.font as tkfont
+        self.assertEqual(tkfont.nametofont("TkDefaultFont", root=self.app).cget("size"), 12)
+
     def test_install_label_text(self):
         self.assertEqual(self.app.path_label["text"], "Dossier d'installation de Votre ComfyUI :")
 
@@ -121,7 +152,7 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         self.app.path_var.set(str(self.comfy))
         self.app.add_workflow_dir(str(extra))
         self._analyze()
-        names = [self.app.unused_tab.table.tree.set(k, "name") for k in self.app.unused_tab.table.keys()]
+        names = [self.app.unused_tab.table.tree.item(k, "text").strip() for k in self.app.unused_tab.table.keys()]
         self.assertEqual(names, ["copy.safetensors"])
 
     def test_unused_checker_reads_extra_folder_at_delete_time(self):

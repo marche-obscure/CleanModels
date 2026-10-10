@@ -25,6 +25,7 @@ class JunkTest(TempHomeMixin, unittest.TestCase):
         self.assertEqual([(j.path.name, j.pattern, j.size) for j in junk],
                          [("a.part", "*.part", 2), ("b.CRDOWNLOAD", "*.crdownload", 1)])
         self.assertEqual(junk[0].category, "checkpoints")
+        self.assertEqual(junk[0].root, dirs[0].path)
 
     def test_custom_pattern(self):
         dirs = self._dirs({"models/checkpoints/x.old": b"x", "models/checkpoints/y.part": b"y"})

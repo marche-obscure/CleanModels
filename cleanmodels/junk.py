@@ -14,6 +14,7 @@ class JunkFile:
     category: str
     size: int
     pattern: str
+    root: Path
 
 
 def match_pattern(name: str, patterns: list) -> str | None:
@@ -43,5 +44,5 @@ def find_junk(dirs: list, patterns: list) -> list:
                     size = path.stat().st_size
                 except OSError:
                     continue
-                found[key] = JunkFile(path, model_dir.category, size, pattern)
+                found[key] = JunkFile(path, model_dir.category, size, pattern, Path(model_dir.path))
     return sorted(found.values(), key=lambda j: str(j.path).casefold())

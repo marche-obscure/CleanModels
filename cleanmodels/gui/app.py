@@ -19,6 +19,7 @@ from ..scope import describe_scope, scope_lines
 from ..settings import load_settings, save_settings, settings_dir
 from .dialogs import confirm_deletion, show_details, show_report
 from .format import format_size
+from .style import apply_style
 from .tabs import DuplicatesTab, JunkTab, UnusedTab, UsedTab
 
 LOG_FILE = "cleanmodels.log"
@@ -28,9 +29,10 @@ POLL_MS = 100
 class CleanModelsApp(tk.Tk):
     def __init__(self):
         super().__init__()
+        apply_style(self)
         self.title(f"CleanModels {__version__}")
-        self.geometry("1150x880")
-        self.minsize(900, 500)
+        self.geometry("1400x960")
+        self.minsize(1000, 600)
         self.settings, settings_warning = load_settings()
         self.result = None
         self.busy = False

@@ -16,7 +16,7 @@ def _modal(parent, title: str) -> tk.Toplevel:
     window = tk.Toplevel(parent)
     window.title(title)
     window.transient(parent)
-    window.minsize(560, 300)
+    window.minsize(700, 360)
     window.columnconfigure(0, weight=1)
     return window
 
@@ -47,9 +47,9 @@ def confirm_deletion(parent, paths: list, total_bytes: int, notes: list) -> bool
     ttk.Label(
         window,
         text=f"{count} fichier{'s' if count > 1 else ''} – {format_size(total_bytes)}",
-        font=("TkDefaultFont", 11, "bold"),
+        font=("TkDefaultFont", 13, "bold"),
     ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 2))
-    tk.Label(window, text=WARNING_TEXT, fg=DANGER, font=("TkDefaultFont", 10, "bold")).grid(
+    tk.Label(window, text=WARNING_TEXT, fg=DANGER, font=("TkDefaultFont", 12, "bold")).grid(
         row=1, column=0, sticky="w", padx=12
     )
     row = 2

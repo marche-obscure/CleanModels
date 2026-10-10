@@ -29,24 +29,45 @@ class CheckTreeTest(unittest.TestCase):
 
         self.changes = []
         self.tree = CheckTree(
-            self.root,
-            [("name", "Nom", 200), ("size_n", "Taille", 80)],
+            self.root, "Nom", [("size_n", "Taille", 80)],
             on_selection_change=lambda: self.changes.append(1),
         )
+        # (clé, groupe, nom, valeurs des colonnes, taille)
         self.tree.set_rows([
-            ("a", ("a.pt", "1 o"), 1),
-            ("b", ("b.pt", "2 o"), 2),
-            ("c", ("c.pt", "4 o"), 4),
+            ("a", "checkpoints", "a.pt", ("1 o",), 1),
+            ("b", "checkpoints", "b.pt", ("2 o",), 2),
+            ("c", "vae", "c.pt", ("4 o",), 4),
         ])
 
     def tearDown(self):
         self.tree.destroy()
+
+    def test_rows_grouped_under_category(self):
+        self.assertEqual(self.tree.groups(), ["checkpoints", "vae"])
+        self.assertEqual(self.tree.keys(), ["a", "b", "c"])
+        self.assertEqual(self.tree.group_of("c"), "vae")
+        self.assertIn("2 fichiers – 3 o", self.tree.group_label("checkpoints"))
+        self.assertIn("1 fichier – 4 o", self.tree.group_label("vae"))
 
     def test_toggle(self):
         self.tree.toggle("b")
         self.assertEqual(self.tree.checked_keys(), ["b"])
         self.assertEqual(self.tree.checked_size(), 2)
         self.assertTrue(self.changes)
+
+    def test_group_toggle_checks_children_only(self):
+        self.tree.toggle_group("checkpoints")
+        self.assertEqual(self.tree.checked_keys(), ["a", "b"])
+        self.assertEqual(self.tree.group_state("checkpoints"), "checked")
+        self.assertEqual(self.tree.group_state("vae"), "unchecked")
+        self.tree.toggle_group("checkpoints")
+        self.assertEqual(self.tree.checked_keys(), [])
+
+    def test_partial_group_state(self):
+        self.tree.toggle("a")
+        self.assertEqual(self.tree.group_state("checkpoints"), "partial")
+        self.tree.toggle_group("checkpoints")
+        self.assertEqual(self.tree.checked_keys(), ["a", "b"])
 
     def test_check_all_and_uncheck_all(self):
         self.tree.check_all()
@@ -57,20 +78,48 @@ class CheckTreeTest(unittest.TestCase):
 
     def test_set_rows_clears_checks(self):
         self.tree.toggle("a")
-        self.tree.set_rows([("a", ("a.pt", "1 o"), 1)])
+        self.tree.set_rows([("a", "checkpoints", "a.pt", ("1 o",), 1)])
         self.assertEqual(self.tree.checked_keys(), [])
 
-    def test_remove_keys(self):
+    def test_remove_keys_updates_and_drops_empty_groups(self):
         self.tree.toggle("a")
         self.tree.remove_keys(["a", "c"])
         self.assertEqual(self.tree.keys(), ["b"])
+        self.assertEqual(self.tree.groups(), ["checkpoints"])
+        self.assertIn("1 fichier – 2 o", self.tree.group_label("checkpoints"))
         self.assertEqual(self.tree.checked_keys(), [])
 
-    def test_sort_by_size_ascending_then_descending(self):
-        self.tree.sort_by("size_n")
+    def test_sort_within_groups(self):
+        self.tree.sort_by("size_n", descending=True)
+        self.assertEqual(self.tree.keys(), ["b", "a", "c"])
+        self.assertEqual(self.tree.groups(), ["checkpoints", "vae"])
+        self.tree.sort_by("#0")
         self.assertEqual(self.tree.keys(), ["a", "b", "c"])
-        self.tree.sort_by("size_n")
-        self.assertEqual(self.tree.keys(), ["c", "b", "a"])
+
+    def test_checkbox_images_are_large(self):
+        self.assertGreaterEqual(self.tree.checkbox_size(), 18)
+
+
+class StyleTest(unittest.TestCase):
+    def test_fonts_are_12_points_and_rows_fit(self):
+        import tkinter.font as tkfont
+        from tkinter import ttk
+
+        from cleanmodels.gui.style import apply_style
+
+        try:
+            root = tk.Tk()
+        except tk.TclError as exc:
+            self.skipTest(f"pas d'affichage disponible : {exc}")
+        try:
+            root.withdraw()
+            apply_style(root)
+            for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont", "TkFixedFont"):
+                self.assertEqual(tkfont.nametofont(name, root=root).cget("size"), 12)
+            linespace = tkfont.nametofont("TkDefaultFont", root=root).metrics("linespace")
+            self.assertGreater(int(ttk.Style(root).lookup("Treeview", "rowheight")), linespace)
+        finally:
+            root.destroy()
 
 
 class ConfirmDeletionTest(unittest.TestCase):

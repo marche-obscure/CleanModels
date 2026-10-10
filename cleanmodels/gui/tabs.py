@@ -31,13 +31,16 @@ def _describe_workflow(path, sources: list) -> str:
     return str(path)
 
 
+def _category_order(rows: list) -> list:
+    """Lignes (clé, groupe, nom, valeurs, taille) triées par catégorie puis par nom."""
+    return sorted(rows, key=lambda r: (r[1].casefold(), r[2].casefold()))
+
+
 class UsedTab(ttk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        self.table = SortableTree(self, [
-            ("name", "Nom", 260),
-            ("category", "Catégorie", 120),
-            ("root", "Dossier racine", 320),
+        self.table = SortableTree(self, "Catégorie / Nom", [
+            ("root", "Dossier racine", 380),
             ("size_n", "Taille", 90),
             ("calls_n", "Appels", 70),
             ("workflows_n", "Workflows", 80),
@@ -53,13 +56,12 @@ class UsedTab(ttk.Frame):
     def show(self, result) -> None:
         self._sources = list(result.workflow_sources)
         self._usages = {file_key(u.file.path): u for u in result.usage.used}
-        self.table.set_rows([
-            (key, (u.file.path.name, u.file.category, str(u.file.root), format_size(u.file.size),
-                   u.calls, len(u.workflows)), u.file.size)
+        self.table.set_rows(_category_order([
+            (key, u.file.category, u.file.rel_path,
+             (str(u.file.root), format_size(u.file.size), u.calls, len(u.workflows)), u.file.size)
             for key, u in self._usages.items()
-        ])
-        self.table.sort_by("calls_n")
-        self.table.sort_by("calls_n")
+        ]))
+        self.table.sort_by("calls_n", descending=True)
 
     def forget(self, keys: list) -> None:
         self.table.remove_keys(keys)
@@ -80,7 +82,7 @@ class UsedTab(ttk.Frame):
 class _DeletableTab(ttk.Frame):
     """Onglet avec cases à cocher, compteur et bouton Supprimer."""
 
-    def __init__(self, master, columns: list, on_delete: DeleteCallback):
+    def __init__(self, master, tree_title: str, columns: list, on_delete: DeleteCallback):
         super().__init__(master)
         self.on_delete = on_delete
         self.enabled = True
@@ -96,7 +98,7 @@ class _DeletableTab(ttk.Frame):
         self.counter.pack(side="left", padx=12)
         self.delete_button = ttk.Button(bar, text="Supprimer", command=self._delete, state="disabled")
         self.delete_button.pack(side="right")
-        self.table = CheckTree(self, columns, on_selection_change=self._refresh)
+        self.table = CheckTree(self, tree_title, columns, on_selection_change=self._refresh)
         self.table.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self._refresh()
 
@@ -121,11 +123,10 @@ class _DeletableTab(ttk.Frame):
 
 class UnusedTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, workflow_folders: Callable[[], list]):
-        super().__init__(master, [
-            ("name", "Nom", 260),
-            ("category", "Catégorie", 120),
-            ("path", "Chemin", 420),
+        super().__init__(master, "Catégorie / Nom", [
+            ("root", "Dossier racine", 340),
             ("size_n", "Taille", 90),
+            ("path", "Chemin complet", 420),
         ], on_delete)
         self._files: dict = {}
         self._result = None
@@ -134,12 +135,11 @@ class UnusedTab(_DeletableTab):
     def show(self, result) -> None:
         self._result = result
         self._files = {file_key(f.path): f for f in result.usage.unused}
-        self.table.set_rows([
-            (key, (f.path.name, f.category, str(f.path), format_size(f.size)), f.size)
+        self.table.set_rows(_category_order([
+            (key, f.category, f.rel_path, (str(f.root), format_size(f.size), str(f.path)), f.size)
             for key, f in self._files.items()
-        ])
-        self.table.sort_by("size_n")
-        self.table.sort_by("size_n")
+        ]))
+        self.table.sort_by("size_n", descending=True)
 
     def _delete(self) -> None:
         files = [self._files[k] for k in self.table.checked_keys()]
@@ -159,9 +159,8 @@ class UnusedTab(_DeletableTab):
 
 class DuplicatesTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, run_background: Callable, set_busy: Callable):
-        super().__init__(master, [
-            ("group_n", "Groupe", 70),
-            ("path", "Chemin", 560),
+        super().__init__(master, "Groupe / Nom", [
+            ("path", "Chemin", 520),
             ("size_n", "Taille", 90),
             ("referenced", "Référencé", 90),
         ], on_delete)
@@ -239,7 +238,8 @@ class DuplicatesTab(_DeletableTab):
                 key = file_key(f.path)
                 self._entries[key] = (group, f)
                 referenced = "oui" if key in self._used_keys else ""
-                rows.append((key, (number, str(f.path), format_size(f.size), referenced), f.size))
+                label = f"Groupe {number} — {group.files[0].path.name}"
+                rows.append((key, label, f.path.name, (str(f.path), format_size(f.size), referenced), f.size))
         self.table.set_rows(rows)
         self.progress.configure(value=100)
         wasted = sum(g.size * (len(g.files) - 1) for g in groups)
@@ -277,11 +277,11 @@ class DuplicatesTab(_DeletableTab):
 
 class JunkTab(_DeletableTab):
     def __init__(self, master, on_delete: DeleteCallback, on_patterns_change: Callable[[list], None]):
-        super().__init__(master, [
-            ("name", "Nom", 240),
-            ("path", "Chemin", 460),
+        super().__init__(master, "Catégorie / Nom", [
+            ("root", "Dossier racine", 340),
             ("size_n", "Taille", 90),
             ("pattern", "Motif", 110),
+            ("path", "Chemin complet", 420),
         ], on_delete)
         self._on_patterns_change = on_patterns_change
         ttk.Label(self.top, text="Motifs (séparés par « ; ») :").pack(side="left")
@@ -301,10 +301,10 @@ class JunkTab(_DeletableTab):
         self._result = result
         junk = result.junk if junk is None else junk
         self._files = {file_key(j.path): j for j in junk}
-        self.table.set_rows([
-            (key, (j.path.name, str(j.path), format_size(j.size), j.pattern), j.size)
+        self.table.set_rows(_category_order([
+            (key, j.category, j.path.name, (str(j.root), format_size(j.size), j.pattern, str(j.path)), j.size)
             for key, j in self._files.items()
-        ])
+        ]))
 
     def _apply(self) -> None:
         patterns = [p.strip() for p in self.patterns_var.get().split(";") if p.strip()]
