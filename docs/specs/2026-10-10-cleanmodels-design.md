@@ -287,7 +287,8 @@ Un fichier sans aucun appel est **non utilisé**.
 - Bouton « Créer le raccourci sur le bureau » (grisé si le raccourci existe ou vient d'être créé).
 - Le raccourci lance `pythonw.exe -m cleanmodels` (sans console) depuis le dossier du projet,
   avec l'icône `assets/cleanmodels.ico` ; création via PowerShell / WScript.Shell.
-- Logo `assets/cleanmodels_logo.png` (fond transparent) en haut à gauche de la fenêtre principale ;
+- Bannière sombre (#1c1b20, identique dans les deux thèmes) en haut de la fenêtre principale : logo
+  `assets/cleanmodels_logo.png` à gauche, Thème et Langue à droite, tout le reste en dessous ;
   icône de fenêtre `assets/cleanmodels.ico`. Fichiers générés une fois par
   `tools/make_assets.py` (Pillow, outil de développement uniquement).
 

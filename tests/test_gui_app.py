@@ -290,6 +290,22 @@ class AppTest(TempHomeMixin, unittest.TestCase):
             self.app.update()
         return ask, created, info, error
 
+    def test_banner_holds_only_logo_theme_and_language(self):
+        from cleanmodels.gui.app import BANNER_BACKGROUND
+
+        banner = str(self.app.banner)
+        self.assertEqual(str(self.app.banner["background"]), BANNER_BACKGROUND)
+        for widget in (self.app.logo_label, self.app.theme_box, self.app.language_box):
+            self.assertTrue(str(widget).startswith(banner + "."), widget)
+        for widget in (self.app.shortcut_button, self.app.path_entry, self.app.gpu_box, self.app.scope_button):
+            self.assertFalse(str(widget).startswith(banner + "."), widget)
+
+    def test_banner_same_color_in_dark_theme(self):
+        from cleanmodels.gui.app import BANNER_BACKGROUND
+
+        self.app.set_theme("dark")
+        self.assertEqual(str(self.app.banner["background"]), BANNER_BACKGROUND)
+
     def test_logo_shown_in_main_window(self):
         self.assertTrue(str(self.app.logo_label["image"]))
 

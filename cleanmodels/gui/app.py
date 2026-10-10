@@ -38,6 +38,8 @@ MANUAL_GPU = "__manual__"
 _RETIRED: list = []
 
 LOGO_PATH = PROJECT_DIR / "assets" / "cleanmodels_logo.png"
+BANNER_BACKGROUND = "#1c1b20"  # bannière sombre, identique en thème Clair et Sombre (comme Deziporama)
+BANNER_FOREGROUND = "#f0f0f0"
 # Logo gardé en cache pour la durée du programme (même raison que _RETIRED).
 _LOGO_CACHE: dict = {}
 
@@ -107,33 +109,31 @@ class CleanModelsApp(tk.Tk):
         self.body = ttk.Frame(self)
         self.body.pack(fill="both", expand=True)
 
-        header = ttk.Frame(self.body)
-        header.pack(fill="x")
-        header.columnconfigure(1, weight=1)
+        # Bannière (même couleur dans les deux thèmes) : logo à gauche, thème et langue à droite.
+        self.banner = tk.Frame(self.body, background=BANNER_BACKGROUND)
+        self.banner.pack(fill="x")
         logo = _logo_image(self)
-        self.logo_label = ttk.Label(header, image=logo if logo is not None else "")
-        self.logo_label.grid(row=0, column=0, sticky="nw", padx=(10, 4), pady=(8, 0))
-        right = ttk.Frame(header)
-        right.grid(row=0, column=1, sticky="new")
-
-        prefs = ttk.Frame(right)
-        prefs.pack(fill="x", padx=10, pady=(8, 0))
-        self.shortcut_button = ttk.Button(prefs, text=t("create_shortcut"), command=self.create_desktop_shortcut,
-                                          state="disabled" if self.shortcut_present else "normal")
-        self.shortcut_button.pack(side="left")
+        self.logo_label = tk.Label(self.banner, image=logo if logo is not None else "",
+                                   background=BANNER_BACKGROUND, borderwidth=0)
+        self.logo_label.pack(side="left", padx=12, pady=6)
+        prefs = tk.Frame(self.banner, background=BANNER_BACKGROUND)
+        prefs.pack(side="right", anchor="n", padx=12, pady=10)
         self.language_var = tk.StringVar(value=LANGUAGES[i18n.get_language()])
         self.language_box = ttk.Combobox(prefs, textvariable=self.language_var, state="readonly", width=10,
                                          values=list(LANGUAGES.values()))
         self.language_box.pack(side="right")
-        ttk.Label(prefs, text=t("language")).pack(side="right", padx=(16, 4))
+        tk.Label(prefs, text=t("language"), background=BANNER_BACKGROUND, foreground=BANNER_FOREGROUND).pack(
+            side="right", padx=(16, 4))
         self.theme_var = tk.StringVar(value=t(f"theme_{self._theme()}"))
         self.theme_box = ttk.Combobox(prefs, textvariable=self.theme_var, state="readonly", width=10,
                                       values=[t(f"theme_{key}") for key in THEME_KEYS])
         self.theme_box.pack(side="right")
-        ttk.Label(prefs, text=t("theme")).pack(side="right", padx=(0, 4))
+        tk.Label(prefs, text=t("theme"), background=BANNER_BACKGROUND, foreground=BANNER_FOREGROUND).pack(
+            side="right", padx=(0, 4))
         self.language_box.bind("<<ComboboxSelected>>", lambda _e: self._on_language_selected())
         self.theme_box.bind("<<ComboboxSelected>>", lambda _e: self._on_theme_selected())
 
+        right = self.body  # tout le reste sous la bannière, sur toute la largeur
         top = ttk.Frame(right)
         top.pack(fill="x", padx=10, pady=(6, 0))
         self.path_label = ttk.Label(top, text=t("install_folder"))
@@ -159,7 +159,14 @@ class CleanModelsApp(tk.Tk):
         self.gpu_manual_button = ttk.Button(gpu_row, text=t("gpu_manual_button"), command=self._ask_manual_vram)
         self.gpu_manual_button.pack(side="left")
         tk.Label(right, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
-                 wraplength=900).pack(fill="x", padx=10)
+                 wraplength=1100).pack(fill="x", padx=10)
+
+        shortcut_row = ttk.Frame(self.body)
+        shortcut_row.pack(fill="x", padx=10, pady=(4, 0))
+        self.shortcut_button = ttk.Button(shortcut_row, text=t("create_shortcut"),
+                                          command=self.create_desktop_shortcut,
+                                          state="disabled" if self.shortcut_present else "normal")
+        self.shortcut_button.pack(side="left")
 
         status = ttk.Frame(self.body)
         status.pack(fill="x", padx=10, pady=4)
