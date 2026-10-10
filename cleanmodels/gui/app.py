@@ -19,7 +19,10 @@ from ..inventory import file_key
 from ..roots import validate_comfyui
 from ..scope import origin_label
 from ..settings import load_settings, save_settings, settings_dir
-from .dialogs import confirm_deletion, show_details, show_report
+from ..shortcut import ICON_PATH, PROJECT_DIR
+from ..shortcut import create as create_shortcut
+from ..shortcut import exists as shortcut_exists
+from .dialogs import ask_choice, confirm_deletion, show_details, show_report
 from .format import format_size
 from .scope_window import ScopeWindow
 from .style import apply_style, palette
@@ -33,6 +36,21 @@ MANUAL_GPU = "__manual__"
 # Variables Tk des interfaces remplacées : gardées en vie pour qu'elles ne soient jamais libérées
 # par le ramasse-miettes depuis un fil d'arrière-plan (appel Tk hors du fil principal).
 _RETIRED: list = []
+
+LOGO_PATH = PROJECT_DIR / "assets" / "cleanmodels_logo.png"
+# Logo gardé en cache pour la durée du programme (même raison que _RETIRED).
+_LOGO_CACHE: dict = {}
+
+
+def _logo_image(root):
+    """Logo PNG (transparent) lu par Tk sans dépendance ; None si le fichier est absent ou illisible."""
+    key = str(root.tk)
+    if key not in _LOGO_CACHE:
+        try:
+            _LOGO_CACHE[key] = tk.PhotoImage(master=root, file=str(LOGO_PATH))
+        except tk.TclError:
+            _LOGO_CACHE[key] = None
+    return _LOGO_CACHE[key]
 
 
 def window_layout(screen_width: int, screen_height: int) -> tuple:
@@ -51,6 +69,11 @@ class CleanModelsApp(tk.Tk):
         i18n.set_language(self.settings.get("language", i18n.DEFAULT_LANGUAGE))
         apply_style(self, self._theme())
         self.title(f"CleanModels {__version__}")
+        if ICON_PATH.is_file():
+            try:
+                self.iconbitmap(default=str(ICON_PATH))
+            except tk.TclError:
+                pass
         self.minsize(700, 500)
         main_geometry, self._scope_geometry = window_layout(self.winfo_screenwidth(), self.winfo_screenheight())
         self.geometry(main_geometry)
@@ -58,10 +81,17 @@ class CleanModelsApp(tk.Tk):
         self.busy = False
         self.scope_window = None
         self.gpus = detect_gpus()
+        # Présence du raccourci vérifiée une seule fois, au lancement (aucune surveillance ensuite).
+        try:
+            self.shortcut_present = shortcut_exists()
+        except OSError:
+            self.shortcut_present = False
         self._build()
         self.path_var.set(self.settings.get("comfyui_path", ""))
         self.junk_tab.set_patterns(self.settings.get("junk_patterns", []))
         self.open_scope_window()
+        if not self.settings.get("desktop_shortcut_asked") and not self.shortcut_present:
+            self.after_idle(self._offer_shortcut)
         if settings_warning:
             self.after(200, lambda: messagebox.showwarning(t("settings_title"), localized(settings_warning),
                                                            parent=self))
@@ -77,8 +107,20 @@ class CleanModelsApp(tk.Tk):
         self.body = ttk.Frame(self)
         self.body.pack(fill="both", expand=True)
 
-        prefs = ttk.Frame(self.body)
+        header = ttk.Frame(self.body)
+        header.pack(fill="x")
+        header.columnconfigure(1, weight=1)
+        logo = _logo_image(self)
+        self.logo_label = ttk.Label(header, image=logo if logo is not None else "")
+        self.logo_label.grid(row=0, column=0, sticky="nw", padx=(10, 4), pady=(8, 0))
+        right = ttk.Frame(header)
+        right.grid(row=0, column=1, sticky="new")
+
+        prefs = ttk.Frame(right)
         prefs.pack(fill="x", padx=10, pady=(8, 0))
+        self.shortcut_button = ttk.Button(prefs, text=t("create_shortcut"), command=self.create_desktop_shortcut,
+                                          state="disabled" if self.shortcut_present else "normal")
+        self.shortcut_button.pack(side="left")
         self.language_var = tk.StringVar(value=LANGUAGES[i18n.get_language()])
         self.language_box = ttk.Combobox(prefs, textvariable=self.language_var, state="readonly", width=10,
                                          values=list(LANGUAGES.values()))
@@ -92,7 +134,7 @@ class CleanModelsApp(tk.Tk):
         self.language_box.bind("<<ComboboxSelected>>", lambda _e: self._on_language_selected())
         self.theme_box.bind("<<ComboboxSelected>>", lambda _e: self._on_theme_selected())
 
-        top = ttk.Frame(self.body)
+        top = ttk.Frame(right)
         top.pack(fill="x", padx=10, pady=(6, 0))
         self.path_label = ttk.Label(top, text=t("install_folder"))
         self.path_label.pack(side="left")
@@ -104,10 +146,10 @@ class CleanModelsApp(tk.Tk):
         self.scope_button = ttk.Button(top, text=t("scope_button"), command=self.open_scope_window)
         self.scope_button.pack(side="left", padx=(6, 0))
 
-        self.validation = tk.Label(self.body, text="", fg=palette()["warn"], anchor="w")
+        self.validation = tk.Label(right, text="", fg=palette()["warn"], anchor="w")
         self.validation.pack(fill="x", padx=10)
 
-        gpu_row = ttk.Frame(self.body)
+        gpu_row = ttk.Frame(right)
         gpu_row.pack(fill="x", padx=10, pady=(2, 0))
         ttk.Label(gpu_row, text=t("gpu_label")).pack(side="left")
         self.gpu_var = tk.StringVar()
@@ -116,8 +158,8 @@ class CleanModelsApp(tk.Tk):
         self.gpu_box.bind("<<ComboboxSelected>>", lambda _e: self._on_gpu_selected())
         self.gpu_manual_button = ttk.Button(gpu_row, text=t("gpu_manual_button"), command=self._ask_manual_vram)
         self.gpu_manual_button.pack(side="left")
-        tk.Label(self.body, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
-                 wraplength=1000).pack(fill="x", padx=10)
+        tk.Label(right, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
+                 wraplength=900).pack(fill="x", padx=10)
 
         status = ttk.Frame(self.body)
         status.pack(fill="x", padx=10, pady=4)
@@ -145,6 +187,26 @@ class CleanModelsApp(tk.Tk):
 
         self.path_var.trace_add("write", lambda *_: self._on_path_change())
         self._refresh_gpu_choices()
+
+    # ----- raccourci sur le bureau ----------------------------------------
+
+    def _offer_shortcut(self) -> None:
+        """Premier lancement : propose le raccourci, une seule fois quelle que soit la réponse."""
+        self.settings["desktop_shortcut_asked"] = True
+        save_settings(self.settings)
+        if ask_choice(self, t("shortcut_title"), t("offer_shortcut"), t("offer_yes"), t("offer_no")):
+            self.create_desktop_shortcut()
+
+    def create_desktop_shortcut(self) -> None:
+        try:
+            path = create_shortcut()
+        except OSError as exc:
+            message = exc.args[0] if exc.args else exc
+            messagebox.showerror(t("shortcut_title"), t("shortcut_failed", error=message), parent=self)
+            return
+        self.shortcut_present = True
+        self.shortcut_button.configure(state="disabled")
+        messagebox.showinfo(t("shortcut_title"), t("shortcut_created", path=path), parent=self)
 
     # ----- carte vidéo --------------------------------------------------
 

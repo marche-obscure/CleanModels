@@ -10,6 +10,16 @@ DEFAULT_LANGUAGE = "fr"
 
 TEXTS = {
     "fr": {
+        # Raccourci et logo
+        "create_shortcut": "Créer le raccourci sur le bureau",
+        "shortcut_title": "Raccourci",
+        "offer_shortcut": "Créer un raccourci CleanModels sur le bureau ?",
+        "offer_yes": "Oui, le créer",
+        "offer_no": "Non merci",
+        "shortcut_created": "Raccourci créé :\n{path}",
+        "shortcut_failed": "Impossible de créer le raccourci :\n{error}",
+        "err_desktop_missing": "Le dossier Bureau est introuvable : {path}",
+        "err_shortcut_failed": "la création du raccourci a échoué",
         # Carte vidéo
         "gpu_label": "Carte vidéo :",
         "gpu_none": "Aucune carte vidéo détectée",
@@ -166,6 +176,15 @@ TEXTS = {
         "log_not_written": "{path} ({status}) : journal non écrit — {error}",
     },
     "en": {
+        "create_shortcut": "Create desktop shortcut",
+        "shortcut_title": "Shortcut",
+        "offer_shortcut": "Create a CleanModels shortcut on the desktop?",
+        "offer_yes": "Yes, create it",
+        "offer_no": "No thanks",
+        "shortcut_created": "Shortcut created:\n{path}",
+        "shortcut_failed": "Cannot create the shortcut:\n{error}",
+        "err_desktop_missing": "The Desktop folder cannot be found: {path}",
+        "err_shortcut_failed": "the shortcut could not be created",
         "gpu_label": "Graphics card:",
         "gpu_none": "No graphics card detected",
         "gpu_entry": "{name} — {size}",
@@ -313,6 +332,15 @@ TEXTS = {
         "log_not_written": "{path} ({status}): log not written — {error}",
     },
     "de": {
+        "create_shortcut": "Desktop-Verknüpfung erstellen",
+        "shortcut_title": "Verknüpfung",
+        "offer_shortcut": "Eine CleanModels-Verknüpfung auf dem Desktop erstellen?",
+        "offer_yes": "Ja, erstellen",
+        "offer_no": "Nein danke",
+        "shortcut_created": "Verknüpfung erstellt:\n{path}",
+        "shortcut_failed": "Die Verknüpfung kann nicht erstellt werden:\n{error}",
+        "err_desktop_missing": "Der Desktop-Ordner wurde nicht gefunden: {path}",
+        "err_shortcut_failed": "die Verknüpfung konnte nicht erstellt werden",
         "gpu_label": "Grafikkarte:",
         "gpu_none": "Keine Grafikkarte erkannt",
         "gpu_entry": "{name} — {size}",

@@ -98,3 +98,29 @@ def show_report(parent, result) -> None:
     if result.log_errors:
         lines += ["", t("report_log_errors")] + [f"  {localized(message)}" for message in result.log_errors]
     show_details(parent, t("report_title"), lines)
+
+
+def ask_choice(parent, title: str, message: str, yes_text: str, no_text: str) -> bool:
+    """Question à deux boutons libellés ; « non » est le choix par défaut (Échap, fermeture)."""
+    window = _modal(parent, title)
+    window.minsize(420, 140)
+    answer = {"value": False}
+    ttk.Label(window, text=message, wraplength=520, justify="left").grid(
+        row=0, column=0, sticky="w", padx=16, pady=(16, 8))
+
+    def close(value: bool) -> None:
+        answer["value"] = value
+        window.destroy()
+
+    buttons = ttk.Frame(window)
+    buttons.grid(row=1, column=0, sticky="e", padx=16, pady=(4, 16))
+    yes = ttk.Button(buttons, text=yes_text, command=lambda: close(True), style="Accent.TButton")
+    no = ttk.Button(buttons, text=no_text, command=lambda: close(False))
+    yes.grid(row=0, column=0, padx=(0, 8))
+    no.grid(row=0, column=1)
+    window.bind("<Escape>", lambda _e: close(False))
+    window.protocol("WM_DELETE_WINDOW", lambda: close(False))
+    yes.focus_set()
+    window.grab_set()
+    parent.wait_window(window)
+    return answer["value"]

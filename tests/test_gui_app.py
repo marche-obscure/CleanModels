@@ -23,6 +23,10 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         self._gpu_patch = mock.patch("cleanmodels.gui.app.detect_gpus", return_value=self.gpus)
         self._gpu_patch.start()
         self.addCleanup(self._gpu_patch.stop)
+        # Par défaut : raccourci déjà présent (aucune question au lancement pendant les tests).
+        self._shortcut_patch = mock.patch("cleanmodels.gui.app.shortcut_exists", return_value=True)
+        self._shortcut_patch.start()
+        self.addCleanup(self._shortcut_patch.stop)
         try:
             self.app = CleanModelsApp()
         except tk.TclError as exc:
@@ -264,6 +268,65 @@ class AppTest(TempHomeMixin, unittest.TestCase):
         finally:
             sys.unraisablehook = previous_hook
         self.assertEqual([e for e in errors if isinstance(e, RuntimeError)], [])
+
+    def _restart(self, asked: bool, present: bool, choice: bool = False, create=None):
+        """Relance l'application avec un état de raccourci donné ; renvoie les simulacres."""
+        from cleanmodels.gui.app import CleanModelsApp
+        from cleanmodels.settings import load_settings, save_settings
+
+        data, _ = load_settings()
+        data["desktop_shortcut_asked"] = asked
+        save_settings(data)
+        self.app.destroy()
+        ask = mock.patch("cleanmodels.gui.app.ask_choice", return_value=choice).start()
+        created = mock.patch("cleanmodels.gui.app.create_shortcut",
+                             side_effect=create or (lambda: self.tmp / "CleanModels.lnk")).start()
+        info = mock.patch("cleanmodels.gui.app.messagebox.showinfo").start()
+        error = mock.patch("cleanmodels.gui.app.messagebox.showerror").start()
+        self.addCleanup(mock.patch.stopall)
+        with mock.patch("cleanmodels.gui.app.shortcut_exists", return_value=present):
+            self.app = CleanModelsApp()
+            self.app.withdraw()
+            self.app.update()
+        return ask, created, info, error
+
+    def test_logo_shown_in_main_window(self):
+        self.assertTrue(str(self.app.logo_label["image"]))
+
+    def test_shortcut_button_disabled_when_shortcut_exists(self):
+        self.assertEqual(str(self.app.shortcut_button["state"]), "disabled")
+
+    def test_first_launch_offers_shortcut_once_and_creates_it(self):
+        ask, created, info, _ = self._restart(asked=False, present=False, choice=True)
+        ask.assert_called_once()
+        created.assert_called_once()
+        info.assert_called_once()
+        self.assertTrue(self._settings()["desktop_shortcut_asked"])
+        self.assertEqual(str(self.app.shortcut_button["state"]), "disabled")
+
+    def test_offer_declined_is_not_asked_again(self):
+        ask, created, _, _ = self._restart(asked=False, present=False, choice=False)
+        ask.assert_called_once()
+        created.assert_not_called()
+        self.assertTrue(self._settings()["desktop_shortcut_asked"])
+        self.assertEqual(str(self.app.shortcut_button["state"]), "normal")
+        ask, _, _, _ = self._restart(asked=True, present=False)
+        ask.assert_not_called()
+
+    def test_no_offer_when_shortcut_already_exists(self):
+        ask, _, _, _ = self._restart(asked=False, present=True)
+        ask.assert_not_called()
+
+    def test_shortcut_button_creates_later_and_reports_errors(self):
+        def fail():
+            raise OSError("Accès refusé")
+
+        _, created, _, error = self._restart(asked=True, present=False, create=fail)
+        self.assertEqual(str(self.app.shortcut_button["state"]), "normal")
+        self.app.shortcut_button.invoke()
+        created.assert_called_once()
+        error.assert_called_once()
+        self.assertEqual(str(self.app.shortcut_button["state"]), "normal")
 
     def test_install_label_text(self):
         self.assertEqual(self.app.path_label["text"], "Dossier d'installation de Votre ComfyUI :")

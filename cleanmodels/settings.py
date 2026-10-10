@@ -32,6 +32,7 @@ def _defaults() -> dict:
         "theme": "light",
         "gpu": "",
         "vram_manual": 0,
+        "desktop_shortcut_asked": False,
     }
 
 

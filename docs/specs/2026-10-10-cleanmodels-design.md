@@ -279,6 +279,18 @@ Un fichier sans aucun appel est **non utilisé**.
   les fichiers de taille **supérieure ou égale** à la mémoire ; la ligne de catégorie indique le
   nombre de fichiers concernés. Mise à jour immédiate au changement de carte. Marquage indicatif.
 
+### Raccourci, logo et icône
+
+- Premier lancement : si le raccourci `CleanModels.lnk` est absent du Bureau (vrai dossier,
+  y compris OneDrive), proposition de le créer, **une seule fois** quelle que soit la réponse
+  (`desktop_shortcut_asked`). Présence vérifiée **au lancement uniquement**, sans surveillance.
+- Bouton « Créer le raccourci sur le bureau » (grisé si le raccourci existe ou vient d'être créé).
+- Le raccourci lance `pythonw.exe -m cleanmodels` (sans console) depuis le dossier du projet,
+  avec l'icône `assets/cleanmodels.ico` ; création via PowerShell / WScript.Shell.
+- Logo `assets/cleanmodels_logo.png` (fond transparent) en haut à gauche de la fenêtre principale ;
+  icône de fenêtre `assets/cleanmodels.ico`. Fichiers générés une fois par
+  `tools/make_assets.py` (Pillow, outil de développement uniquement).
+
 ## 7. Réglages
 
 Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.cleanmodels/`) :

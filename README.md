@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/cleanmodels_readme.png" alt="CleanModels" width="320"></p>
+
 # CleanModels
 
 Desktop tool to clean up your ComfyUI models:
@@ -63,7 +65,7 @@ run_cleanmodels.bat
 
 ### First launch
 
-Nothing is downloaded or installed: CleanModels starts immediately. The main window opens on the left of the screen and the “Check scope” window on its right. Enter your ComfyUI installation folder (or click **Browse…**), check the folders to analyze, then click **Analyze**.
+Nothing is downloaded or installed: CleanModels starts immediately. On the very first launch, it offers to create a **CleanModels shortcut on the desktop** (asked only once, whatever the answer). You can create it later with the **Create desktop shortcut** button at the top of the main window; the button is greyed out when the shortcut already exists (checked when CleanModels starts). The main window opens on the left of the screen and the “Check scope” window on its right. Enter your ComfyUI installation folder (or click **Browse…**), check the folders to analyze, then click **Analyze**.
 
 If the launcher reports an error, you can start CleanModels by hand in a Command Prompt opened in the CleanModels folder:
 
@@ -84,6 +86,11 @@ git pull
 Without Git, download the new zip and extract it over the old folder. Your settings (ComfyUI folder, added workflow folders, graphics card, theme, language) are stored in `%APPDATA%\CleanModels\settings.json` and are kept.
 
 CleanModels starts in French. You can change the language (Français, English, Deutsch) and the theme (Light / Dark) at any time with the selectors in the top-right corner of the main window; there is no question at startup.
+
+## Images
+
+The logo and the icon are generated from `assets/source/` by `tools/make_assets.py`. This
+developer tool needs [Pillow](https://pypi.org/project/pillow/); the application itself does not.
 
 ## Tests
 

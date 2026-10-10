@@ -12,13 +12,13 @@ class SettingsTest(TempHomeMixin, unittest.TestCase):
             load_settings(),
             ({"config_version": 2, "comfyui_path": "", "junk_patterns": list(DEFAULT_JUNK_PATTERNS),
               "extra_workflow_dirs": [], "language": "fr", "theme": "light",
-              "gpu": "", "vram_manual": 0}, None),
+              "gpu": "", "vram_manual": 0, "desktop_shortcut_asked": False}, None),
         )
 
     def test_roundtrip_keeps_unknown_keys(self):
         data = {"config_version": 2, "comfyui_path": "D:/ComfyUI", "junk_patterns": ["*.tmp"],
                 "extra_workflow_dirs": ["E:/wf"], "language": "de", "theme": "dark",
-                "gpu": "Carte A", "vram_manual": 0, "future_key": 42}
+                "gpu": "Carte A", "vram_manual": 0, "desktop_shortcut_asked": True, "future_key": 42}
         save_settings(data)
         self.assertEqual(load_settings(), (data, None))
 
