@@ -133,40 +133,34 @@ class CleanModelsApp(tk.Tk):
         self.language_box.bind("<<ComboboxSelected>>", lambda _e: self._on_language_selected())
         self.theme_box.bind("<<ComboboxSelected>>", lambda _e: self._on_theme_selected())
 
-        right = self.body  # tout le reste sous la bannière, sur toute la largeur
-        top = ttk.Frame(right)
-        top.pack(fill="x", padx=10, pady=(6, 0))
-        self.path_label = ttk.Label(top, text=t("install_folder"))
-        self.path_label.pack(side="left")
+        # Grille : libellés alignés à droite, champs de même longueur, boutons de même largeur.
+        form = ttk.Frame(self.body)
+        form.pack(fill="x", padx=10, pady=(8, 0))
+        form.columnconfigure(1, weight=1)
+        self.path_label = ttk.Label(form, text=t("install_folder"))
+        self.path_label.grid(row=0, column=0, sticky="e", padx=(0, 6), pady=2)
         self.path_var = tk.StringVar()
-        self.path_entry = ttk.Entry(top, textvariable=self.path_var)
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=6)
-        self.browse_button = ttk.Button(top, text=t("browse"), command=self._browse)
-        self.browse_button.pack(side="left")
-        self.scope_button = ttk.Button(top, text=t("scope_button"), command=self.open_scope_window)
-        self.scope_button.pack(side="left", padx=(6, 0))
+        self.path_entry = ttk.Entry(form, textvariable=self.path_var)
+        self.path_entry.grid(row=0, column=1, sticky="ew", pady=2)
+        self.browse_button = ttk.Button(form, text=t("browse"), command=self._browse)
+        self.browse_button.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=2)
+        self.scope_button = ttk.Button(form, text=t("scope_button"), command=self.open_scope_window)
+        self.scope_button.grid(row=0, column=3, sticky="ew", padx=(6, 0), pady=2)
 
-        self.validation = tk.Label(right, text="", fg=palette()["warn"], anchor="w")
-        self.validation.pack(fill="x", padx=10)
+        self.validation = tk.Label(form, text="", fg=palette()["warn"], anchor="w")
+        self.validation.grid(row=1, column=1, columnspan=3, sticky="w")
+        self.validation.grid_remove()  # affiché seulement s'il y a un message
 
-        gpu_row = ttk.Frame(right)
-        gpu_row.pack(fill="x", padx=10, pady=(2, 0))
-        ttk.Label(gpu_row, text=t("gpu_label")).pack(side="left")
+        self.gpu_label = ttk.Label(form, text=t("gpu_label"))
+        self.gpu_label.grid(row=2, column=0, sticky="e", padx=(0, 6), pady=2)
         self.gpu_var = tk.StringVar()
-        self.gpu_box = ttk.Combobox(gpu_row, textvariable=self.gpu_var, state="readonly", width=48)
-        self.gpu_box.pack(side="left", padx=6)
+        self.gpu_box = ttk.Combobox(form, textvariable=self.gpu_var, state="readonly")
+        self.gpu_box.grid(row=2, column=1, sticky="ew", pady=2)
         self.gpu_box.bind("<<ComboboxSelected>>", lambda _e: self._on_gpu_selected())
-        self.gpu_manual_button = ttk.Button(gpu_row, text=t("gpu_manual_button"), command=self._ask_manual_vram)
-        self.gpu_manual_button.pack(side="left")
-        tk.Label(right, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
-                 wraplength=1100).pack(fill="x", padx=10)
-
-        shortcut_row = ttk.Frame(self.body)
-        shortcut_row.pack(fill="x", padx=10, pady=(4, 0))
-        self.shortcut_button = ttk.Button(shortcut_row, text=t("create_shortcut"),
-                                          command=self.create_desktop_shortcut,
-                                          state="disabled" if self.shortcut_present else "normal")
-        self.shortcut_button.pack(side="left")
+        self.gpu_manual_button = ttk.Button(form, text=t("gpu_manual_button"), command=self._ask_manual_vram)
+        self.gpu_manual_button.grid(row=2, column=2, sticky="ew", padx=(6, 0), pady=2)
+        tk.Label(form, text=t("vram_hint"), fg=palette()["vram"], anchor="w", justify="left",
+                 wraplength=1100).grid(row=3, column=0, columnspan=4, sticky="w", pady=(2, 0))
 
         status = ttk.Frame(self.body)
         status.pack(fill="x", padx=10, pady=4)
@@ -181,6 +175,9 @@ class CleanModelsApp(tk.Tk):
         self.summary_label.pack(side="left")
         self.details_button = ttk.Button(summary, text=t("details"), command=self._details, state="disabled")
         self.details_button.pack(side="right")
+        self.shortcut_button = ttk.Button(summary, text=t("create_shortcut"), command=self.create_desktop_shortcut,
+                                          state="disabled" if self.shortcut_present else "normal")
+        self.shortcut_button.pack(side="right", padx=(0, 6))
 
         self.notebook = ttk.Notebook(self.body)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -341,6 +338,10 @@ class CleanModelsApp(tk.Tk):
         path = self.path_var.get().strip()
         message = t("path_missing") if not path else validate_comfyui(Path(path))
         self.validation.configure(text=localized(message) if message else "")
+        if message:
+            self.validation.grid()
+        else:
+            self.validation.grid_remove()
         state = "disabled" if self.busy else "normal"
         self.scope_button.configure(state=state)
         self.language_box.configure(state="disabled" if self.busy else "readonly")

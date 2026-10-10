@@ -290,6 +290,37 @@ class AppTest(TempHomeMixin, unittest.TestCase):
             self.app.update()
         return ask, created, info, error
 
+    def test_fields_and_buttons_aligned_on_a_grid(self):
+        app = self.app
+        entry, gpu = app.path_entry.grid_info(), app.gpu_box.grid_info()
+        self.assertEqual(entry["in"], gpu["in"])
+        self.assertEqual(int(entry["column"]), int(gpu["column"]))
+        self.assertIn("e", entry["sticky"])
+        self.assertIn("w", entry["sticky"])
+        self.assertEqual(sorted(entry["sticky"]), sorted(gpu["sticky"]))
+        browse, manual = app.browse_button.grid_info(), app.gpu_manual_button.grid_info()
+        self.assertEqual(int(browse["column"]), int(manual["column"]))
+        self.assertEqual(sorted(browse["sticky"]), sorted("ew"))
+        self.assertEqual(sorted(manual["sticky"]), sorted("ew"))
+        self.assertEqual(app.path_label.grid_info()["sticky"], "e")
+        self.assertEqual(app.gpu_label.grid_info()["sticky"], "e")
+        self.assertEqual(int(app.path_label.grid_info()["column"]), int(app.gpu_label.grid_info()["column"]))
+
+    def test_shortcut_button_next_to_details(self):
+        self.assertEqual(self.app.shortcut_button.winfo_parent(), self.app.details_button.winfo_parent())
+
+    def test_scope_window_buttons_on_one_row(self):
+        window = self.app.scope_window
+        buttons = [window.add_button, window.remove_button, window.close_button, window.analyze_button]
+        self.assertEqual(len({b.winfo_parent() for b in buttons}), 1)
+        self.assertEqual([b.pack_info()["side"] for b in buttons], ["left", "left", "right", "right"])
+        window.update_idletasks()
+        xs = [b.winfo_x() for b in buttons]
+        self.assertEqual(xs, sorted(xs))  # Ajouter, Retirer, Fermer, Analyser de gauche à droite
+        window.deiconify()
+        window.update()
+        self.assertEqual(len({b.winfo_height() for b in buttons}), 1)
+
     def test_banner_holds_only_logo_theme_and_language(self):
         from cleanmodels.gui.app import BANNER_BACKGROUND
 

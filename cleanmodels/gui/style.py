@@ -59,7 +59,7 @@ def apply_style(root, theme: str = "light") -> None:
     style.configure("TButton", background=p["heading"], padding=(10, 4))
     style.map("TButton", background=[("disabled", p["disabled_bg"]), ("active", p["border"])])
     style.configure("Accent.TButton", background=p["accent"], foreground="#ffffff",
-                    font=("TkDefaultFont", FONT_SIZE, "bold"), padding=(16, 6))
+                    font=("TkDefaultFont", FONT_SIZE, "bold"), padding=(16, 4))
     style.map("Accent.TButton",
               background=[("disabled", p["disabled_bg"]), ("active", p["accent_active"]), ("!disabled", p["accent"])],
               foreground=[("disabled", p["disabled_fg"]), ("!disabled", "#ffffff")])

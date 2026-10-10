@@ -37,18 +37,17 @@ class ScopeWindow(tk.Toplevel):
                                 wraplength=700)
         self.warning.pack(fill="x", padx=10, pady=(4, 0))
 
+        # Une seule ligne : Ajouter et Retirer à gauche, Fermer et Analyser à droite.
         bar = ttk.Frame(self)
-        bar.pack(fill="x", padx=10, pady=(6, 0))
+        bar.pack(fill="x", padx=10, pady=10)
         self.add_button = ttk.Button(bar, text=t("add_workflow_dir"), command=self._browse)
-        self.add_button.pack(side="left")
+        self.add_button.pack(side="left", fill="y")
         self.remove_button = ttk.Button(bar, text=t("remove_workflow_dir"), command=self._remove)
-        self.remove_button.pack(side="left", padx=6)
-
-        actions = ttk.Frame(self)
-        actions.pack(fill="x", padx=10, pady=10)
-        self.analyze_button = ttk.Button(actions, text=t("analyze"), command=self.analyze, style="Accent.TButton")
-        self.analyze_button.pack(side="right")
-        ttk.Button(actions, text=t("close"), command=self.close).pack(side="right", padx=6)
+        self.remove_button.pack(side="left", fill="y", padx=6)
+        self.close_button = ttk.Button(bar, text=t("close"), command=self.close)
+        self.analyze_button = ttk.Button(bar, text=t("analyze"), command=self.analyze, style="Accent.TButton")
+        self.analyze_button.pack(side="right", fill="y")
+        self.close_button.pack(side="right", fill="y", padx=(0, 6))
 
         self.protocol("WM_DELETE_WINDOW", self.close)
         self._rows: dict = {}
