@@ -102,3 +102,11 @@ py -3 -m unittest discover -s tests -v
 
 - Specification: `docs/specs/2026-10-10-cleanmodels-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-10-10-cleanmodels.md`
+
+## License
+
+The source code is released under the [MIT License](LICENSE).
+
+The images in the `assets` folder (CleanModels logo, mascot and icon) are **not** covered by the
+MIT License: © 2026 marche-obscure, all rights reserved. They may not be reused, modified or
+redistributed separately from CleanModels without permission.
