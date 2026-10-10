@@ -2,7 +2,7 @@
 
 Sous-ensemble géré : mappings imbriqués par indentation (espaces), scalaires simples
 ou entre guillemets, blocs littéraux « | », commentaires « # ».
-Les guillemets sont simplement retirés, sans interprétation des séquences « \ »,
+Les guillemets sont simplement retirés, sans interprétation des séquences d'échappement,
 pour que les chemins Windows restent intacts.
 """
 
