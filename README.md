@@ -1,47 +1,47 @@
 # CleanModels
 
-Outil de bureau pour faire le ménage dans les modèles ComfyUI :
+Desktop tool to clean up your ComfyUI models:
 
-- **Utilisés** : modèles cités par vos workflows, avec le nombre d'appels et de workflows ;
-- **Non utilisés** : modèles qu'aucun workflow ne cite ;
-- **Doublons** : fichiers au contenu identique (recherche à la demande) ;
-- **Fichiers parasites** : téléchargements incomplets et temporaires (`*.part`, `*.crdownload`, `*.tmp`, `*.download`, motifs modifiables).
+- **Used**: models referenced by your workflows, with the number of calls and workflows;
+- **Unused**: models that no workflow references;
+- **Duplicates**: files with identical content (search on demand);
+- **Junk files**: incomplete and temporary downloads (`*.part`, `*.crdownload`, `*.tmp`, `*.download`, editable patterns).
 
-Workflows de référence : `<ComfyUI>/user/default/workflows/`, plus les dossiers de workflows
-que vous ajoutez dans l'application (mémorisés, retirables).
-Dossiers analysés : `<ComfyUI>/models/` et les chemins de `extra_model_paths.yaml` (liens
-symboliques et jonctions compris), limités à
+Reference workflows: `<ComfyUI>/user/default/workflows/`, plus any workflow folders you add in
+the application (remembered, removable).
+Folders analyzed: `<ComfyUI>/models/` and the paths declared in `extra_model_paths.yaml`
+(symbolic links and junctions included), limited to
 `checkpoints`, `controlnet`, `diffusion_models`, `LLM`, `model_patches`, `text_encoders`, `unet`, `vae`.
 
-Le bouton « Périmètre et analyse… » ouvre la fenêtre « Périmètre du contrôle » : elle affiche
-les dossiers de workflows de référence et les dossiers de modèles qui seront examinés, avec leur
-origine et la cible réelle des liens. Tout est coché par défaut ; décochez les dossiers à ne pas
-analyser, puis cliquez sur « Analyser ». Un dossier de workflows décoché est tout de même relu
-avant chaque suppression : un modèle qu'il utilise ne peut pas être supprimé.
+The “Scope and analysis…” button opens the “Check scope” window: it shows the reference workflow
+folders and the model folders that will be examined, with their origin and the real target of
+links. Everything is checked by default; uncheck the folders you do not want to analyze, then
+click “Analyze”. An unchecked workflow folder is still read again before each deletion: a model it
+uses cannot be deleted.
 
-Au lancement, la fenêtre principale s'ouvre à gauche de l'écran et la fenêtre « Périmètre du
-contrôle » à sa droite ; elle reste ouverte après l'analyse.
+At startup, the main window opens on the left of the screen and the “Check scope” window on its
+right; it stays open after the analysis.
 
-En haut à droite de la fenêtre principale : **Thème** (Clair / Sombre) et **Langue**
-(Français / English / Deutsch). Les choix sont mémorisés ; le journal reste en français.
+Top right of the main window: **Theme** (Light / Dark) and **Language** (Français / English /
+Deutsch). Both choices are remembered; the log file stays in French.
 
-**Carte vidéo** : la mémoire est lue automatiquement (nvidia-smi, sinon registre Windows) ;
-choisissez la carte de référence ou saisissez la valeur à la main. Les fichiers dont la taille
-est supérieure ou égale à cette mémoire sont marqués ⚠ et colorés en orange (indicatif).
+**Graphics card**: its memory is read automatically (nvidia-smi, otherwise the Windows registry);
+choose the reference card or enter the value manually. Files whose size is greater than or equal
+to that memory are marked ⚠ and shown in orange (indicative only).
 
-## ⚠ Suppression définitive
+## ⚠ Permanent deletion
 
-Les fichiers supprimés ne passent **pas** par la Corbeille. Chaque suppression demande une
-confirmation explicite, est revérifiée juste avant d'agir et est inscrite dans le journal
+Deleted files do **not** go to the Recycle Bin. Every deletion requires explicit confirmation,
+is checked again just before acting, and is recorded in the log
 `%APPDATA%\CleanModels\cleanmodels.log`.
 
-## Prérequis
+## Requirements
 
-Python 3.10 ou plus récent, sans aucune bibliothèque supplémentaire.
+Python 3.10 or later, with no additional library.
 
-## Lancement
+## Running
 
-Double-cliquez sur `run_cleanmodels.bat`, ou :
+Double-click `run_cleanmodels.bat`, or:
 
 ```bash
 py -3 -m cleanmodels
@@ -53,7 +53,7 @@ py -3 -m cleanmodels
 py -3 -m unittest discover -s tests -v
 ```
 
-## Documentation
+## Documentation (in French)
 
-- Spécification : `docs/specs/2026-10-10-cleanmodels-design.md`
-- Plan d'implémentation : `docs/superpowers/plans/2026-10-10-cleanmodels.md`
+- Specification: `docs/specs/2026-10-10-cleanmodels-design.md`
+- Implementation plan: `docs/superpowers/plans/2026-10-10-cleanmodels.md`
