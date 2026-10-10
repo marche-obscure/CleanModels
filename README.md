@@ -37,15 +37,53 @@ is checked again just before acting, and is recorded in the log
 
 ## Requirements
 
-Python 3.10 or later, with no additional library.
+- Windows 10 or 11.
+- [Python 3.10 or later](https://www.python.org/downloads/). During installation, tick **"Add Python to PATH"** and keep the **"tcl/tk and IDLE"** option checked (it provides the windows used by CleanModels; it is checked by default).
+- [Git](https://git-scm.com/download/win), only for the installation with Git (option 1 below).
 
-## Running
+CleanModels uses only the Python standard library: there is nothing else to install.
 
-Double-click `run_cleanmodels.bat`, or:
+## Installation
 
-```bash
+### Option 1: with Git
+
+Open a **Command Prompt** (`cmd`) in the folder where you want CleanModels, then run:
+
+```bat
+git clone https://github.com/marche-obscure/CleanModels.git
+cd CleanModels
+run_cleanmodels.bat
+```
+
+### Option 2: without Git
+
+1. On this page, click **Code**, then **Download ZIP**.
+2. Extract the zip anywhere on your PC.
+3. Double-click **`run_cleanmodels.bat`** in the extracted folder.
+
+### First launch
+
+Nothing is downloaded or installed: CleanModels starts immediately. The main window opens on the left of the screen and the “Check scope” window on its right. Enter your ComfyUI installation folder (or click **Browse…**), check the folders to analyze, then click **Analyze**.
+
+If the launcher reports an error, you can start CleanModels by hand in a Command Prompt opened in the CleanModels folder:
+
+```bat
 py -3 -m cleanmodels
 ```
+
+If `py` is not recognized, Python is not installed or was installed without the launcher: reinstall it from python.org with the options above.
+
+### Update
+
+With Git, from the CleanModels folder:
+
+```bat
+git pull
+```
+
+Without Git, download the new zip and extract it over the old folder. Your settings (ComfyUI folder, added workflow folders, graphics card, theme, language) are stored in `%APPDATA%\CleanModels\settings.json` and are kept.
+
+CleanModels starts in French. You can change the language (Français, English, Deutsch) and the theme (Light / Dark) at any time with the selectors in the top-right corner of the main window; there is no question at startup.
 
 ## Tests
 
