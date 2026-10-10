@@ -46,6 +46,14 @@ def _real_key(path: Path) -> str:
     return os.path.normcase(os.path.realpath(path))
 
 
+def link_target(path: Path) -> Path | None:
+    """Cible réelle si le chemin passe par un lien symbolique ou une jonction, sinon None."""
+    real = os.path.realpath(path)
+    if os.path.normcase(real) == os.path.normcase(os.path.abspath(path)):
+        return None
+    return Path(real)
+
+
 def _to_path(value: str) -> Path:
     expanded = os.path.expanduser(os.path.expandvars(value.strip()))
     return Path(expanded.replace("\\", "/"))

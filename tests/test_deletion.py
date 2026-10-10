@@ -77,13 +77,13 @@ class DeletionTest(TempHomeMixin, unittest.TestCase):
         path = root / "v.pt"
         model = ModelFile(path, path, "vae", "v.pt", 2, root)
         wf = comfy / "user" / "default" / "workflows"
-        checker_before = unused_checker(wf, [model])
+        checker_before = unused_checker([wf], [model])
         (wf / "new.json").write_text(
             json.dumps({"nodes": [{"id": 1, "type": "VAELoader", "widgets_values": ["v.pt"]}]}), encoding="utf-8"
         )
         item = DeletionItem(path, 2, "unused")
         self.assertIsNone(checker_before(item))
-        result = delete_files([item], unused_checker(wf, [model]), self.log)
+        result = delete_files([item], unused_checker([wf], [model]), self.log)
         self.assertEqual([reason for _, reason in result.refused], ["cité par un workflow"])
         self.assertTrue(path.exists())
         self.assertIn("REFUSÉ: cité par un workflow", self._log_lines()[0])
@@ -105,7 +105,7 @@ class DeletionTest(TempHomeMixin, unittest.TestCase):
         comfy, a, b = self._two_same_name()
         wf = comfy / "user" / "default" / "workflows"
         os.remove(a.path)
-        checker = unused_checker(wf, [a, b])
+        checker = unused_checker([wf], [a, b])
         self.assertEqual(checker(DeletionItem(b.path, 2, "unused")), "cité par un workflow")
 
     def test_unused_checker_refuses_when_workflow_unreadable(self):
@@ -113,7 +113,7 @@ class DeletionTest(TempHomeMixin, unittest.TestCase):
         wf = comfy / "user" / "default" / "workflows"
         (wf / "broken.json").write_text("{", encoding="utf-8")
         other = self._make("other.pt")
-        reason = unused_checker(wf, [a, b])(other)
+        reason = unused_checker([wf], [a, b])(other)
         self.assertIsNotNone(reason)
         self.assertIn("illisible", reason)
 
@@ -126,7 +126,7 @@ class DeletionTest(TempHomeMixin, unittest.TestCase):
         root = comfy / "models" / "LLM"
         path = root / "Qwen2.5-VL" / "model.safetensors"
         f = ModelFile(path, path, "LLM", os.path.join("Qwen2.5-VL", "model.safetensors"), 1, root)
-        reason = unused_checker(comfy / "user" / "default" / "workflows", [f])(DeletionItem(path, 1, "unused"))
+        reason = unused_checker([comfy / "user" / "default" / "workflows"], [f])(DeletionItem(path, 1, "unused"))
         self.assertEqual(reason, "cité par un workflow")
 
     def test_log_failure_does_not_abort(self):

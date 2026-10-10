@@ -11,7 +11,6 @@ from ..deletion import DeletionItem, duplicates_checker, fully_selected_groups, 
 from ..duplicates import Cancelled, find_duplicates
 from ..inventory import file_key
 from ..junk import find_junk
-from ..roots import workflows_dir
 from .checktree import CheckTree, SortableTree
 from .dialogs import show_details
 from .format import format_size
@@ -20,11 +19,16 @@ from .format import format_size
 DeleteCallback = Callable[[list, Callable, list], None]
 
 
-def _relative(path, base) -> str:
-    try:
-        return os.path.relpath(path, base)
-    except ValueError:
-        return str(path)
+def _describe_workflow(path, sources: list) -> str:
+    """Chemin du workflow relatif à son dossier de référence, suivi de ce dossier."""
+    for source in sources:
+        try:
+            rel = os.path.relpath(path, source.path)
+        except ValueError:
+            continue
+        if not rel.startswith(".."):
+            return f"{rel}  [{source.origin} : {source.path}]"
+    return str(path)
 
 
 class UsedTab(ttk.Frame):
@@ -44,10 +48,10 @@ class UsedTab(ttk.Frame):
         self.table.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self.table.bind_double_click(self._details)
         self._usages: dict = {}
-        self._workflows_dir = None
+        self._sources: list = []
 
     def show(self, result) -> None:
-        self._workflows_dir = workflows_dir(result.comfy)
+        self._sources = list(result.workflow_sources)
         self._usages = {file_key(u.file.path): u for u in result.usage.used}
         self.table.set_rows([
             (key, (u.file.path.name, u.file.category, str(u.file.root), format_size(u.file.size),
@@ -69,7 +73,7 @@ class UsedTab(ttk.Frame):
             return
         lines = [str(usage.file.path), ""]
         for ref in usage.references:
-            lines.append(f"{_relative(ref.workflow, self._workflows_dir)} — nœud {ref.node_id} ({ref.node_type})")
+            lines.append(f"{_describe_workflow(ref.workflow, self._sources)} — nœud {ref.node_id} ({ref.node_type})")
         show_details(self, f"Utilisation de {usage.file.path.name}", lines)
 
 
@@ -116,7 +120,7 @@ class _DeletableTab(ttk.Frame):
 
 
 class UnusedTab(_DeletableTab):
-    def __init__(self, master, on_delete: DeleteCallback):
+    def __init__(self, master, on_delete: DeleteCallback, workflow_folders: Callable[[], list]):
         super().__init__(master, [
             ("name", "Nom", 260),
             ("category", "Catégorie", 120),
@@ -125,6 +129,7 @@ class UnusedTab(_DeletableTab):
         ], on_delete)
         self._files: dict = {}
         self._result = None
+        self._workflow_folders = workflow_folders
 
     def show(self, result) -> None:
         self._result = result
@@ -139,7 +144,9 @@ class UnusedTab(_DeletableTab):
     def _delete(self) -> None:
         files = [self._files[k] for k in self.table.checked_keys()]
         items = [DeletionItem(f.path, f.size, "unused") for f in files]
-        folder, inventory = workflows_dir(self._result.comfy), self._result.inventory
+        # Dossiers de l'analyse + dossiers actuellement configurés : on contrôle large.
+        folders = [src.path for src in self._result.workflow_sources] + list(self._workflow_folders())
+        inventory = self._result.inventory
         files, aliases = list(inventory.files), list(inventory.aliases)
         notes = []
         if self._result.workflows.skipped:
@@ -147,7 +154,7 @@ class UnusedTab(_DeletableTab):
                 f"{len(self._result.workflows.skipped)} workflow(s) illisible(s) : la suppression sera refusée "
                 "tant qu'ils ne sont pas corrigés ou retirés (voir « Détails… »)."
             )
-        self.on_delete(items, lambda: unused_checker(folder, files, aliases), notes)
+        self.on_delete(items, lambda: unused_checker(folders, files, aliases), notes)
 
 
 class DuplicatesTab(_DeletableTab):

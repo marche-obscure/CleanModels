@@ -1,6 +1,7 @@
 """Extraction des références de modèles depuis les workflows ComfyUI (.json)."""
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -94,10 +95,24 @@ def name_references_from_json(data: object, workflow: Path) -> list:
 
 
 def scan_workflows(folder: Path) -> WorkflowScan:
+    return scan_workflow_dirs([folder])
+
+
+def scan_workflow_dirs(folders: list) -> WorkflowScan:
+    """Lit les workflows de plusieurs dossiers ; un dossier absent est ignoré,
+    un même fichier atteint par deux dossiers n'est lu qu'une fois."""
     scan = WorkflowScan()
-    for path in sorted(Path(folder).rglob("*.json")):
-        if not path.is_file():
+    paths, seen = [], set()
+    for folder in folders:
+        folder = Path(folder)
+        if not folder.is_dir():
             continue
+        for path in sorted(folder.rglob("*.json")):
+            key = os.path.normcase(os.path.realpath(path))
+            if key not in seen and path.is_file():
+                seen.add(key)
+                paths.append(path)
+    for path in paths:
         try:
             data = json.loads(path.read_text(encoding="utf-8-sig"))
             refs = references_from_json(data, path)

@@ -9,7 +9,7 @@ from typing import Callable
 from .inventory import file_key
 from .junk import match_pattern
 from .matching import FileIndex
-from .workflows import scan_workflows
+from .workflows import scan_workflow_dirs
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ class DeletionResult:
 Checker = Callable[[DeletionItem], "str | None"]
 
 
-def unused_checker(workflows_folder: Path, files: list, aliases: list = ()) -> Checker:
+def unused_checker(workflow_folders: list, files: list, aliases: list = ()) -> Checker:
     """Refuse un fichier qu'un workflow cite au moment de la suppression.
 
     Seuls les fichiers encore présents sont indexés : une référence dont la cible
@@ -44,7 +44,7 @@ def unused_checker(workflows_folder: Path, files: list, aliases: list = ()) -> C
     present = [f for f in files if os.path.isfile(f.path)]
     present_aliases = [(rel, f) for rel, f in aliases if os.path.isfile(f.path)]
     index = FileIndex(present, present_aliases)
-    scan = scan_workflows(workflows_folder)
+    scan = scan_workflow_dirs(list(workflow_folders))
     referenced = {
         file_key(f.path)
         for ref in scan.references + scan.name_references

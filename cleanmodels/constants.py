@@ -1,6 +1,6 @@
 """Valeurs fixées par la spécification."""
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 
 CATEGORIES = (
     "checkpoints",

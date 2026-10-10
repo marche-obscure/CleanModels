@@ -26,6 +26,7 @@ def _defaults() -> dict:
         "config_version": CONFIG_VERSION,
         "comfyui_path": "",
         "junk_patterns": list(DEFAULT_JUNK_PATTERNS),
+        "extra_workflow_dirs": [],
     }
 
 
@@ -50,6 +51,11 @@ def load_settings() -> tuple[dict, str | None]:
             f"Il a été renommé en {backup.name} et les réglages par défaut sont utilisés."
         )
     data.update(stored)
+    # Mise à niveau : une version antérieure est portée à la version courante,
+    # une version plus récente est conservée telle quelle.
+    version = stored.get("config_version", 1)
+    if not isinstance(version, int) or version < CONFIG_VERSION:
+        data["config_version"] = CONFIG_VERSION
     return data, None
 
 

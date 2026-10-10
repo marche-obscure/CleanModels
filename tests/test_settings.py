@@ -10,11 +10,13 @@ class SettingsTest(TempHomeMixin, unittest.TestCase):
     def test_defaults_when_missing(self):
         self.assertEqual(
             load_settings(),
-            ({"config_version": 1, "comfyui_path": "", "junk_patterns": list(DEFAULT_JUNK_PATTERNS)}, None),
+            ({"config_version": 2, "comfyui_path": "", "junk_patterns": list(DEFAULT_JUNK_PATTERNS),
+              "extra_workflow_dirs": []}, None),
         )
 
     def test_roundtrip_keeps_unknown_keys(self):
-        data = {"config_version": 1, "comfyui_path": "D:/ComfyUI", "junk_patterns": ["*.tmp"], "future_key": 42}
+        data = {"config_version": 2, "comfyui_path": "D:/ComfyUI", "junk_patterns": ["*.tmp"],
+                "extra_workflow_dirs": ["E:/wf"], "future_key": 42}
         save_settings(data)
         self.assertEqual(load_settings(), (data, None))
 

@@ -37,8 +37,15 @@ parasites, puis en lui permettant de les supprimer de façon contrôlée.
 
 ### Workflows de référence
 
-- Uniquement `<ComfyUI>/user/default/workflows/`, sous-dossiers compris, fichiers `*.json`.
-- Le chemin `<ComfyUI>` est fourni par l'utilisateur.
+- `<ComfyUI>/user/default/workflows/`, sous-dossiers compris, fichiers `*.json`.
+- Plus les **dossiers de workflows supplémentaires** ajoutés à la main par l'utilisateur
+  (mémorisés dans les réglages, retirables). Un dossier ajouté introuvable est signalé et
+  ignoré, sans être retiré de la liste. Pas de détection automatique d'autres profils.
+- Le chemin `<ComfyUI>` est fourni par l'utilisateur (libellé « Dossier d'installation de
+  Votre ComfyUI »).
+- Le panneau **Périmètre du contrôle** affiche avant l'analyse les dossiers de workflows de
+  référence et les dossiers de modèles analysés, avec leur origine (`models` ou section de
+  `extra_model_paths.yaml`) et la cible réelle des liens symboliques / jonctions.
 
 ### Dossiers analysés
 
@@ -249,14 +256,16 @@ Fichier `%APPDATA%\CleanModels\settings.json` (sur d'autres systèmes : `~/.clea
 
 ```json
 {
-  "config_version": 1,
+  "config_version": 2,
   "comfyui_path": "D:/ComfyUI",
-  "junk_patterns": ["*.part", "*.crdownload", "*.tmp", "*.download"]
+  "junk_patterns": ["*.part", "*.crdownload", "*.tmp", "*.download"],
+  "extra_workflow_dirs": ["E:/MesWorkflows"]
 }
 ```
 
 - Clé inconnue : conservée telle quelle (compatibilité avec une version plus récente).
 - Clé absente : valeur par défaut.
+- Version antérieure : portée à la version courante ; version plus récente : conservée.
 - Fichier corrompu : renommé en `settings.json.bak` et remplacé par les valeurs par défaut,
   avec un message à l'utilisateur.
 

@@ -7,9 +7,15 @@ Outil de bureau pour faire le ménage dans les modèles ComfyUI :
 - **Doublons** : fichiers au contenu identique (recherche à la demande) ;
 - **Fichiers parasites** : téléchargements incomplets et temporaires (`*.part`, `*.crdownload`, `*.tmp`, `*.download`, motifs modifiables).
 
-Workflows de référence : `<ComfyUI>/user/default/workflows/` uniquement.
-Dossiers analysés : `<ComfyUI>/models/` et les chemins de `extra_model_paths.yaml`, limités à
+Workflows de référence : `<ComfyUI>/user/default/workflows/`, plus les dossiers de workflows
+que vous ajoutez dans l'application (mémorisés, retirables).
+Dossiers analysés : `<ComfyUI>/models/` et les chemins de `extra_model_paths.yaml` (liens
+symboliques et jonctions compris), limités à
 `checkpoints`, `controlnet`, `diffusion_models`, `LLM`, `model_patches`, `text_encoders`, `unet`, `vae`.
+
+Le panneau « Périmètre du contrôle » affiche, avant l'analyse, les dossiers de workflows de
+référence et les dossiers de modèles qui seront examinés, avec leur origine et la cible réelle
+des liens.
 
 ## ⚠ Suppression définitive
 
