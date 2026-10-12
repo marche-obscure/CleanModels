@@ -37,6 +37,9 @@ Deleted files do **not** go to the Recycle Bin. Every deletion requires explicit
 is checked again just before acting, and is recorded in the log
 `%APPDATA%\CleanModels\cleanmodels.log`.
 
+<p align="center"><img src="assets/screenshot.webp" alt="CleanModels: main window (Unused tab, dark theme) and Check scope window" width="100%"></p>
+<p align="center"><em>Main window (Unused tab, dark theme) and the “Check scope” window. Paths and model names are blurred.</em></p>
+
 ## Requirements
 
 - Windows 10 or 11.

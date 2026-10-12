@@ -70,7 +70,10 @@ def tag_webp(path: Path) -> None:
         chunks.append([tag, data[pos + 8:pos + 8 + size]])
         pos += 8 + size + (size & 1)
     if chunks[0][0] != b"VP8X":
-        raise ValueError(f"{path} : format WebP simple non pris en charge (VP8X attendu)")
+        # WebP simple : on ajoute l'en-tête étendu (drapeaux + dimensions du canevas moins 1, sur 24 bits).
+        width, height = Image.open(path).size
+        vp8x = bytes(4) + (width - 1).to_bytes(3, "little") + (height - 1).to_bytes(3, "little")
+        chunks.insert(0, [b"VP8X", vp8x])
     chunks = [c for c in chunks if c[0] not in (b"EXIF", b"XMP ")]
     chunks += [[b"EXIF", _exif_tiff()], [b"XMP ", XMP_PACKET]]
     header = bytearray(chunks[0][1])
