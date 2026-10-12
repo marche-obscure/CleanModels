@@ -31,6 +31,23 @@ Deutsch). Both choices are remembered; the log file stays in French.
 choose the reference card or enter the value manually. Files whose size is greater than or equal
 to that memory are marked ⚠ and shown in orange (indicative only).
 
+## How duplicates are detected
+
+Duplicates are detected by **content**, not by name: two files with different names in different
+folders are still found, and two files with the same name but different content are not flagged.
+
+1. **Size first**: files are grouped by exact size in bytes. A file with a unique size cannot have
+   a duplicate, so it is skipped without being read.
+2. **SHA-256 hash**: only files sharing the same size are fully read (in 8 MB chunks) and hashed.
+   Same hash means identical content, byte for byte.
+
+- The same physical file reached through a symbolic link, a junction or a hard link is counted
+  once and never reported as a duplicate.
+- Hashing multi-GB models takes time, so the search only runs when you click **Find duplicates**,
+  with a progress bar and a **Cancel** button.
+- Each copy shows whether a workflow references it, and CleanModels refuses to delete every copy
+  of a group: at least one copy is always kept.
+
 ## ⚠ Permanent deletion
 
 Deleted files do **not** go to the Recycle Bin. Every deletion requires explicit confirmation,
